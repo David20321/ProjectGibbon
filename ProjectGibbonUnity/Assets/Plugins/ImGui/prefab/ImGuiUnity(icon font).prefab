@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &2754424283706112633
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: customFonts.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: customFonts.Array.data[0]
+      value: ProggyTiny.ttf
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: fontPixelSize
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: iconFont
+      value: fa-solid-900.ttf
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: iconFontMinAdvanceX
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: iconRangeMin
+      value: f000
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: iconRangeMax
+      value: f773
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: customFontPixelSize
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: iconFontPixelSize
+      value: 12
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: enableGameController
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 114833390538610658, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc,
+        type: 3}
+      propertyPath: useFreetype
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -10
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4324879074462258, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
+      propertyPath: m_RootOrder
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 7983f04810e8d9d4590f2ef8f4aeb4dc, type: 3}
