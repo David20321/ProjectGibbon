@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class GibbonControl : MonoBehaviour
 {
+    public GameObject gibbon;
+
     Vector3 vel;
     Vector3 last_pos;
     Vector3 pos;
@@ -28,6 +30,37 @@ public class GibbonControl : MonoBehaviour
             hands[i].gripping = true;
         }
         hands[next_hand].gripping = false;
+        
+        var root = gibbon.transform.Find("rig/root");
+        var hip = root.Find("DEF-spine");
+        var belly = hip.Find("DEF-spine_001");
+        var chest = belly.Find("DEF-spine_002/DEF-spine_003");
+        var neck = chest.Find("DEF-spine_004/DEF-spine_005");
+        var head = neck.Find("DEF-spine_006");
+        var leg_root = root.Find("torso/MCH-spine_001/MCH-spine/tweak_spine/ORG-spine");
+        var left_thigh = leg_root.Find("DEF-thigh_L");
+        var left_knee = left_thigh.Find("DEF-thigh_L_001/DEF-shin_L");
+        var left_foot = left_knee.Find("DEF-shin_L_001/DEF-foot_L");
+        var arm_root = root.Find("torso/MCH-spine_002/MCH-spine_003/tweak_spine_003/ORG-spine_003");
+        var left_clavicle = arm_root.Find("ORG-shoulder_L");
+        var left_shoulder = left_clavicle.Find("DEF-upper_arm_L");
+        var left_elbow = left_shoulder.Find("DEF-upper_arm_L_001/DEF-forearm_L");
+        var left_wrist = left_elbow.Find("DEF-forearm_L_001/DEF-hand_L");
+        
+        DebugDraw.Line(neck.position, head.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(neck.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(belly.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(belly.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_thigh.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_thigh.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_foot.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_foot.position, left_foot.TransformPoint(Vector3.right * -0.7f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_clavicle.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_clavicle.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_elbow.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_elbow.position, left_wrist.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        DebugDraw.Line(left_wrist.position, left_wrist.TransformPoint(Vector3.right*-1.0f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        
     }
 
     // Update is called once per frame
