@@ -18,10 +18,89 @@ public class GibbonControl : MonoBehaviour
     HandState[] hands;
     int next_hand = 0;
     const float arm_length = 0.8f;
+    Character character = new Character();
+
+    class Character {        
+        public Transform root;
+        public Transform hip;
+        public Transform belly;
+        public Transform chest;
+        public Transform neck;
+        public Transform head;
+        public Transform leg_root;
+        public Transform left_thigh;
+        public Transform left_knee;
+        public Transform left_foot;
+        public Transform right_thigh;
+        public Transform right_knee;
+        public Transform right_foot;
+        public Transform arm_root;
+        public Transform left_clavicle;
+        public Transform left_shoulder;
+        public Transform left_elbow;
+        public Transform left_wrist;
+        public Transform right_clavicle;
+        public Transform right_shoulder;
+        public Transform right_elbow;
+        public Transform right_wrist;
+
+        public void GetTransforms(Transform p_root){
+            root = p_root;
+            hip = root.Find("DEF-spine");
+            belly = hip.Find("DEF-spine_001");
+            chest = belly.Find("DEF-spine_002/DEF-spine_003");
+            neck = chest.Find("DEF-spine_004/DEF-spine_005");
+            head = neck.Find("DEF-spine_006");
+            leg_root = root.Find("torso/MCH-spine_001/MCH-spine/tweak_spine/ORG-spine");
+            left_thigh = leg_root.Find("DEF-thigh_L");
+            left_knee = left_thigh.Find("DEF-thigh_L_001/DEF-shin_L");
+            left_foot = left_knee.Find("DEF-shin_L_001/DEF-foot_L");
+            right_thigh = leg_root.Find("DEF-thigh_R");
+            right_knee = right_thigh.Find("DEF-thigh_R_001/DEF-shin_R");
+            right_foot = right_knee.Find("DEF-shin_R_001/DEF-foot_R");
+            arm_root = root.Find("torso/MCH-spine_002/MCH-spine_003/tweak_spine_003/ORG-spine_003");
+            left_clavicle = arm_root.Find("ORG-shoulder_L");
+            left_shoulder = left_clavicle.Find("DEF-upper_arm_L");
+            left_elbow = left_shoulder.Find("DEF-upper_arm_L_001/DEF-forearm_L");
+            left_wrist = left_elbow.Find("DEF-forearm_L_001/DEF-hand_L");
+            right_clavicle = arm_root.Find("ORG-shoulder_R");
+            right_shoulder = right_clavicle.Find("DEF-upper_arm_R");
+            right_elbow = right_shoulder.Find("DEF-upper_arm_R_001/DEF-forearm_R");
+            right_wrist = right_elbow.Find("DEF-forearm_R_001/DEF-hand_R");
+        }
+
+        public void Draw() {
+            DebugDraw.Line(neck.position, head.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(neck.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(belly.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(belly.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+
+            DebugDraw.Line(left_thigh.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_thigh.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_foot.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_foot.position, left_foot.TransformPoint(Vector3.right * -0.7f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            
+            DebugDraw.Line(right_thigh.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_thigh.position, right_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_foot.position, right_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_foot.position, right_foot.TransformPoint(Vector3.right * -0.7f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            
+            DebugDraw.Line(left_clavicle.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_clavicle.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_elbow.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_elbow.position, left_wrist.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(left_wrist.position, left_wrist.TransformPoint(Vector3.right*-1.0f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        
+            DebugDraw.Line(right_clavicle.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_clavicle.position, right_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_elbow.position, right_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_elbow.position, right_wrist.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+            DebugDraw.Line(right_wrist.position, right_wrist.TransformPoint(Vector3.right*-1.0f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        }
+    }
 
     // Start is called before the first frame update
-    void Start()
-    {
+    void Start() {
         pos = Vector3.zero;
         hands = new HandState[2];
         for(int i=0; i<2; ++i){
@@ -31,36 +110,9 @@ public class GibbonControl : MonoBehaviour
         }
         hands[next_hand].gripping = false;
         
-        var root = gibbon.transform.Find("rig/root");
-        var hip = root.Find("DEF-spine");
-        var belly = hip.Find("DEF-spine_001");
-        var chest = belly.Find("DEF-spine_002/DEF-spine_003");
-        var neck = chest.Find("DEF-spine_004/DEF-spine_005");
-        var head = neck.Find("DEF-spine_006");
-        var leg_root = root.Find("torso/MCH-spine_001/MCH-spine/tweak_spine/ORG-spine");
-        var left_thigh = leg_root.Find("DEF-thigh_L");
-        var left_knee = left_thigh.Find("DEF-thigh_L_001/DEF-shin_L");
-        var left_foot = left_knee.Find("DEF-shin_L_001/DEF-foot_L");
-        var arm_root = root.Find("torso/MCH-spine_002/MCH-spine_003/tweak_spine_003/ORG-spine_003");
-        var left_clavicle = arm_root.Find("ORG-shoulder_L");
-        var left_shoulder = left_clavicle.Find("DEF-upper_arm_L");
-        var left_elbow = left_shoulder.Find("DEF-upper_arm_L_001/DEF-forearm_L");
-        var left_wrist = left_elbow.Find("DEF-forearm_L_001/DEF-hand_L");
-        
-        DebugDraw.Line(neck.position, head.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(neck.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(belly.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(belly.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_thigh.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_thigh.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_foot.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_foot.position, left_foot.TransformPoint(Vector3.right * -0.7f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_clavicle.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_clavicle.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_elbow.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_elbow.position, left_wrist.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        DebugDraw.Line(left_wrist.position, left_wrist.TransformPoint(Vector3.right*-1.0f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        
+        gibbon.GetComponent<Animator>().runtimeAnimatorController.animationClips[3].SampleAnimation(gibbon, 0.0f);
+        character.GetTransforms(gibbon.transform.Find("rig/root"));
+        character.Draw();            
     }
 
     static void DrawCircle(Vector3 pos, float radius){
@@ -87,7 +139,9 @@ public class GibbonControl : MonoBehaviour
         // Leg jump speed 8.3 m/s (most force from swinging arms)
         // Ground speed up to 4 m/s?
         // Continous contact can go up to 4 m/s, ricochetal can go as low as 2.5 m/s
+        // Ricochetal contact time ~0.5s at 3 m/s, 0.25s at 6 m/s
         // Continuous contact optimized when spaced slightly closer than full arm spread of animal, so around 1.2 m
+        // Usually has margin of error, swings with arm not fully extended at high speed
         if(false){ // Walking on branch
             float max_speed = 4f;
             Vector3 target_vel = Vector3.zero;
@@ -230,6 +284,7 @@ public class GibbonControl : MonoBehaviour
         }
         var cam_pos = Camera.main.transform.position;
         cam_pos[0] = pos[0];
+        cam_pos = gibbon.transform.position - Vector3.forward * 3.0f;
         Camera.main.transform.position = cam_pos;
     }
 }
