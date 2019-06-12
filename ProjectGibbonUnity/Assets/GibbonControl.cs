@@ -200,6 +200,13 @@ public class GibbonControl : MonoBehaviour
             ImGui.Text($"X vel: {vel[0]}");   
         }
         ImGui.End();
+
+        gibbon.transform.position = pos;
+        var hand = gibbon.transform.Find("hand_ik_r");
+        if(hands[0].gripping){
+            gibbon.transform.rotation = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos);
+            hand.transform.position = hands[0].pos;
+        }
     }
 
     private void FixedUpdate() {
