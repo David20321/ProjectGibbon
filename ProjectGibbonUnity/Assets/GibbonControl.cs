@@ -105,35 +105,39 @@ public class GibbonControl : MonoBehaviour
 
     float measured_arm_length;
 
-    struct VerletPoint {
+    class VerletPoint {
         public float3 pos;
         public float3 old_pos;
         public float3 temp;
         public bool pinned;
+        public string name;
     }
 
-    struct VerletBone {
+    class VerletBone {
         public int2 points;
         public float length;
+        public string name;
     }
 
-    NativeArray<VerletPoint> points;
-    NativeArray<VerletBone> bones;
+    List<VerletPoint> points = new List<VerletPoint>();
+    List<VerletBone> bones = new List<VerletBone>();
 
-    void SetUpPoint(int which, float3 pos, string name){
-        var point = points[which];
+    void AddPoint(float3 pos, string name){
+        var point = new VerletPoint();
         point.pos = pos;
         point.old_pos = pos;
         point.pinned = false;
-        points[which] = point;
+        point.name = name;
+        points.Add(point);
     }
     
-    void SetUpBone(int which, string name, int a, int b) {
-        var bone = bones[which];
+    void AddBone(string name, int a, int b) {
+        var bone = new VerletBone();
         bone.points[0] = a;
         bone.points[1] = b;
         bone.length = math.distance(points[b].pos, points[a].pos);
-        bones[which] = bone;
+        bone.name = name;
+        bones.Add(bone);
     }
 
     // Start is called before the first frame update
@@ -167,19 +171,21 @@ public class GibbonControl : MonoBehaviour
 
         measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(shoulder.position, elbow.position);
                   
-        points = new NativeArray<VerletPoint>(2, Allocator.Persistent);
-        SetUpPoint(0, (float3)shoulder.position, "shoulder_r");
-        SetUpPoint(1, (float3)grip.position, "hand_r");
+        AddPoint((float3)shoulder.position, "shoulder_r");
+        AddPoint((float3)grip.position, "hand_r");
+        AddPoint((float3)(shoulder.position+Vector3.right * (neck.position[0] - shoulder.position[0])*2f), "shoulder_l");
+        AddPoint((float3)(grip.position+Vector3.right * (neck.position[0] - grip.position[0])*2f), "hand_l");
+        AddPoint(new float3(neck.position[0], hip.position[1], neck.position[2]), "body");
         var point = points[1];
         point.pinned = true;
         points[1] = point;
-        bones = new NativeArray<VerletBone>(1, Allocator.Persistent);
-        SetUpBone(0, "arm_r", 0, 1);
+        AddBone("arm_r", 0, 1);
+        AddBone("arm_l", 2, 3);
+        AddBone("tri_top", 0, 2);
+        AddBone("tri_r", 0, 4);
+        AddBone("tri_l", 2, 4);
     }
-
-        private void OnDestroy() {
-            
-        }
+    
 
         static void DrawCircle(Vector3 pos, float radius){
         int num_segments = 32;
@@ -302,7 +308,7 @@ public class GibbonControl : MonoBehaviour
             hand.transform.position += vel / (vel.magnitude+1.2f);
         }
 
-        for(int i=0; i<bones.Length; ++i){
+        for(int i=0; i<bones.Count; ++i){
             DebugDraw.Line(points[bones[i].points[0]].pos,points[bones[i].points[1]].pos, Color.white, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
         }
     }
@@ -397,16 +403,15 @@ public class GibbonControl : MonoBehaviour
         Camera.main.transform.position = cam_pos;
         }
         
-        for(int i=0; i<points.Length; ++i){
+        for(int i=0; i<points.Count; ++i){
             var point = points[i];
             if(!point.pinned){
                 point.temp = point.pos;
                 var acc = new float3(0, Physics.gravity[1], 0);
                 point.pos = point.pos + (point.pos - point.old_pos) +  acc * Time.fixedDeltaTime * Time.fixedDeltaTime;
-                points[i] = point;
             }
         }
-        for(int i=0; i<bones.Length; ++i){
+        for(int i=0; i<bones.Count; ++i){
             var bone = bones[i];
             int num_pinned = 0;
             if(points[bone.points[0]].pinned) {++num_pinned;}
@@ -423,16 +428,19 @@ public class GibbonControl : MonoBehaviour
                         }
                         var unpinned_point = points[unpinned];
                         unpinned_point.pos = points[pinned].pos + (points[unpinned].pos - points[pinned].pos) / curr_len * bone.length;
-                        points[unpinned] = unpinned_point;
+                    } else {
+                        var mid = (points[bone.points[0]].pos + points[bone.points[1]].pos) * 0.5f;
+                        var offset = (points[bone.points[1]].pos - points[bone.points[0]].pos) / curr_len;
+                        points[bone.points[0]].pos = mid - offset * bone.length * 0.5f;
+                        points[bone.points[1]].pos = mid + offset * bone.length * 0.5f;
                     }
                 }
             }
         }
-        for(int i=0; i<points.Length; ++i){
+        for(int i=0; i<points.Count; ++i){
             var point = points[i];
             if(!point.pinned){
                 point.old_pos = point.temp;
-                points[i] = point;
             }
         }
     }
