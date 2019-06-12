@@ -219,13 +219,24 @@ public class GibbonControl : MonoBehaviour
             var old_hand_pos = hand.transform.position;
             var old_hand_rot = hand.transform.rotation;
 
-            gibbon.transform.position -= old_hand_pos;
+            
+            /*gibbon.transform.position -= old_hand_pos;
             gibbon.transform.rotation = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos) * gibbon.transform.rotation;
             gibbon.transform.position = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos) * gibbon.transform.position;
             gibbon.transform.position += old_hand_pos;
+    */   
+            gibbon.transform.position = pos;
 
             hand.transform.position = old_hand_pos;
-            hand.transform.rotation = old_hand_rot;        
+            hand.transform.rotation = old_hand_rot; 
+        } else {
+            var gibbon_pos = gibbon.transform.position;
+            gibbon_pos = pos;
+            gibbon.transform.position = gibbon_pos;
+
+            hand.transform.position -= Vector3.up * 0.8f;
+            var vel = (pos - last_pos) / Time.fixedDeltaTime;
+            hand.transform.position += vel / (vel.magnitude+1.2f);
         }
 
     }
@@ -242,6 +253,9 @@ public class GibbonControl : MonoBehaviour
             }
             if(Input.GetKey(KeyCode.D) && old_vel[0] < max_speed){
                 acc += Vector3.right * side_speed;
+            }
+            if(Input.GetKey(KeyCode.W)){
+                acc -= Physics.gravity * 1.5f;
             }
         //}
 

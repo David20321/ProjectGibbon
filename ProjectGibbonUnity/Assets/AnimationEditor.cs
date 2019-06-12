@@ -31,6 +31,7 @@ public class Pose {
 public class AnimationEditor : MonoBehaviour {
     string temp_name = "animations";
     string temp_file_path;
+    string app_path;
     int version = 1;
     public GameObject rig;
     
@@ -71,10 +72,8 @@ public class AnimationEditor : MonoBehaviour {
     // Start is called before the first frame update
     void Start() {
         temp_file_path = $"{Application.persistentDataPath}{Path.DirectorySeparatorChar}{temp_name}";
-        var app_path = $"{Application.dataPath}{Path.DirectorySeparatorChar}{temp_name}";
-        if (File.Exists(temp_file_path)) {
-            LoadFromFile(temp_file_path);
-        } else if (File.Exists(app_path)) {
+        app_path = $"{Application.dataPath}{Path.DirectorySeparatorChar}{temp_name}";
+        if (File.Exists(app_path)) {
             LoadFromFile(app_path);
         }
         TestCompare(poses[2].name, "Hang2");
@@ -136,8 +135,8 @@ public class AnimationEditor : MonoBehaviour {
         Debug.Log($"Serializing");
         //var data = terrain.Serialize();
 
-        Debug.Log($"Writing file: {temp_file_path}");
-        using (FileStream file = File.Open(temp_file_path, FileMode.Create, FileAccess.Write)) {
+        Debug.Log($"Writing file: {app_path}");
+        using (FileStream file = File.Open(app_path, FileMode.Create, FileAccess.Write)) {
             using (BinaryWriter bw = new BinaryWriter(file)) {
                 bw.Write(version);
                 bw.Write(poses.Count);
