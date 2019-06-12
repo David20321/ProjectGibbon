@@ -3,6 +3,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Mathematics;
+using Unity.Collections;
 
 namespace Wolfire {
 public class GibbonControl : MonoBehaviour
@@ -101,6 +103,39 @@ public class GibbonControl : MonoBehaviour
         }
     }
 
+    float measured_arm_length;
+
+    struct VerletPoint {
+        public float3 pos;
+        public float3 old_pos;
+        public float3 temp;
+        public bool pinned;
+    }
+
+    struct VerletBone {
+        public int2 points;
+        public float length;
+    }
+
+    NativeArray<VerletPoint> points;
+    NativeArray<VerletBone> bones;
+
+    void SetUpPoint(int which, float3 pos, string name){
+        var point = points[which];
+        point.pos = pos;
+        point.old_pos = pos;
+        point.pinned = false;
+        points[which] = point;
+    }
+    
+    void SetUpBone(int which, string name, int a, int b) {
+        var bone = bones[which];
+        bone.points[0] = a;
+        bone.points[1] = b;
+        bone.length = math.distance(points[b].pos, points[a].pos);
+        bones[which] = bone;
+    }
+
     // Start is called before the first frame update
     void Start() {
         pos = Vector3.zero;
@@ -115,10 +150,38 @@ public class GibbonControl : MonoBehaviour
         //gibbon.GetComponent<Animator>().runtimeAnimatorController.animationClips[3].SampleAnimation(gibbon, 0.0f);
         //character.GetTransforms(gibbon.transform.Find("rig/root"));
         //character.Draw();            
+        
+        var root = GameObject.Find("points").transform;
+        var neck = root.Find("neck");
+        var head = root.Find("head");
+        var shoulder = root.Find("shoulder");
+        var elbow = root.Find("elbow");
+        var grip = root.Find("grip");
+        var hip = root.Find("hip");
+        var knee = root.Find("knee");
+        var foot = root.Find("foot");
+        
+        //DebugDraw.Line(neck.position, shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        //DebugDraw.Line(shoulder.position, elbow.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        //DebugDraw.Line(elbow.position, grip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
 
+        measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(shoulder.position, elbow.position);
+                  
+        points = new NativeArray<VerletPoint>(2, Allocator.Persistent);
+        SetUpPoint(0, (float3)shoulder.position, "shoulder_r");
+        SetUpPoint(1, (float3)grip.position, "hand_r");
+        var point = points[1];
+        point.pinned = true;
+        points[1] = point;
+        bones = new NativeArray<VerletBone>(1, Allocator.Persistent);
+        SetUpBone(0, "arm_r", 0, 1);
     }
 
-    static void DrawCircle(Vector3 pos, float radius){
+        private void OnDestroy() {
+            
+        }
+
+        static void DrawCircle(Vector3 pos, float radius){
         int num_segments = 32;
         for(int i=1; i<num_segments+1; ++i){
             float interp = (i-1)/(float)num_segments * Mathf.PI * 2f;
@@ -239,9 +302,13 @@ public class GibbonControl : MonoBehaviour
             hand.transform.position += vel / (vel.magnitude+1.2f);
         }
 
+        for(int i=0; i<bones.Length; ++i){
+            DebugDraw.Line(points[bones[i].points[0]].pos,points[bones[i].points[1]].pos, Color.white, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+        }
     }
 
     private void FixedUpdate() {
+        {
         var temp_pos = pos;
         var old_vel = (pos - last_pos) / Time.fixedDeltaTime;
         var acc = Physics.gravity;
@@ -328,6 +395,46 @@ public class GibbonControl : MonoBehaviour
         cam_pos[0] = pos[0];
         //cam_pos = gibbon.transform.position - Vector3.forward * 3.0f;
         Camera.main.transform.position = cam_pos;
+        }
+        
+        for(int i=0; i<points.Length; ++i){
+            var point = points[i];
+            if(!point.pinned){
+                point.temp = point.pos;
+                var acc = new float3(0, Physics.gravity[1], 0);
+                point.pos = point.pos + (point.pos - point.old_pos) +  acc * Time.fixedDeltaTime * Time.fixedDeltaTime;
+                points[i] = point;
+            }
+        }
+        for(int i=0; i<bones.Length; ++i){
+            var bone = bones[i];
+            int num_pinned = 0;
+            if(points[bone.points[0]].pinned) {++num_pinned;}
+            if(points[bone.points[1]].pinned) {++num_pinned;}
+            if(num_pinned < 2){
+                float curr_len = math.distance(points[bone.points[0]].pos, points[bone.points[1]].pos);
+                if(curr_len != 0f){
+                    if(num_pinned == 1){
+                        int pinned = bone.points[1];
+                        int unpinned = bone.points[0];
+                        if(points[bone.points[0]].pinned){
+                            pinned = bone.points[0];
+                            unpinned = bone.points[1];
+                        }
+                        var unpinned_point = points[unpinned];
+                        unpinned_point.pos = points[pinned].pos + (points[unpinned].pos - points[pinned].pos) / curr_len * bone.length;
+                        points[unpinned] = unpinned_point;
+                    }
+                }
+            }
+        }
+        for(int i=0; i<points.Length; ++i){
+            var point = points[i];
+            if(!point.pinned){
+                point.old_pos = point.temp;
+                points[i] = point;
+            }
+        }
     }
 }
 }
