@@ -1,8 +1,10 @@
 ﻿using ImGuiNET;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+namespace Wolfire {
 public class GibbonControl : MonoBehaviour
 {
     public GameObject gibbon;
@@ -108,11 +110,12 @@ public class GibbonControl : MonoBehaviour
             hands[i].pos = pos;
             hands[i].gripping = true;
         }
-        hands[next_hand].gripping = false;
+        hands[1].gripping = false;
         
         //gibbon.GetComponent<Animator>().runtimeAnimatorController.animationClips[3].SampleAnimation(gibbon, 0.0f);
         //character.GetTransforms(gibbon.transform.Find("rig/root"));
         //character.Draw();            
+
     }
 
     static void DrawCircle(Vector3 pos, float radius){
@@ -200,13 +203,31 @@ public class GibbonControl : MonoBehaviour
             ImGui.Text($"X vel: {vel[0]}");   
         }
         ImGui.End();
-
-        gibbon.transform.position = pos;
-        var hand = gibbon.transform.Find("hand_ik_r");
-        if(hands[0].gripping){
-            gibbon.transform.rotation = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos);
-            hand.transform.position = hands[0].pos;
+        
+        var editor = GetComponent<AnimationEditor>();
+        foreach(var pose in editor.poses){
+            if(pose.name == "Hang_pole"){
+                AnimationEditor.ApplyPose(gibbon.transform, pose);                
+            }
         }
+        var hand = gibbon.transform.Find("hand_ik_r");
+        if(hands[0].gripping){    
+            var gibbon_pos = gibbon.transform.position;
+            gibbon_pos[0] = hands[0].pos[0];
+            gibbon.transform.position = gibbon_pos;
+
+            var old_hand_pos = hand.transform.position;
+            var old_hand_rot = hand.transform.rotation;
+
+            gibbon.transform.position -= old_hand_pos;
+            gibbon.transform.rotation = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos) * gibbon.transform.rotation;
+            gibbon.transform.position = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos) * gibbon.transform.position;
+            gibbon.transform.position += old_hand_pos;
+
+            hand.transform.position = old_hand_pos;
+            hand.transform.rotation = old_hand_rot;        
+        }
+
     }
 
     private void FixedUpdate() {
@@ -294,4 +315,5 @@ public class GibbonControl : MonoBehaviour
         //cam_pos = gibbon.transform.position - Vector3.forward * 3.0f;
         Camera.main.transform.position = cam_pos;
     }
+}
 }

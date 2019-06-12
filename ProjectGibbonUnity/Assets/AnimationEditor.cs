@@ -1,4 +1,5 @@
 ﻿using ImGuiNET;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -33,7 +34,7 @@ public class AnimationEditor : MonoBehaviour {
     int version = 1;
     public GameObject rig;
     
-    List<Pose> poses = new List<Pose>();
+    public List<Pose> poses = new List<Pose>();
 
     void LoadFromFile(string path) {
         Debug.Log($"Found file {path}");
@@ -53,6 +54,19 @@ public class AnimationEditor : MonoBehaviour {
             }
         }
     }
+    
+
+    void TestCompare(string a, string b) {
+        a = a.Trim();
+        if (a.Length != b.Length)
+            throw new Exception("Well here's the problem");
+
+        for (int i = 0; i < a.Length; i++) {
+            if (a[i] != b[i]) {
+                throw new Exception("Difference at character: " + i + 1);
+            }
+        }
+    }
 
     // Start is called before the first frame update
     void Start() {
@@ -63,6 +77,7 @@ public class AnimationEditor : MonoBehaviour {
         } else if (File.Exists(app_path)) {
             LoadFromFile(app_path);
         }
+        TestCompare(poses[2].name, "Hang2");
     }
 
     void WriteQuaternion(BinaryWriter bw, Quaternion quat) {
@@ -137,6 +152,16 @@ public class AnimationEditor : MonoBehaviour {
     char[] str0 = "".PadRight(128, '\0').ToCharArray();
     int renaming = -1;
 
+    public static void ApplyPose(Transform rig_transform, Pose pose){
+        pose.transforms[(int)Pose.Part.rig].toTransform(rig_transform);
+        pose.transforms[(int)Pose.Part.body].toTransform(rig_transform.Find("body_ik"));
+        pose.transforms[(int)Pose.Part.chest].toTransform(rig_transform.Find("chest_and_mesh"));
+        pose.transforms[(int)Pose.Part.foot_l].toTransform(rig_transform.Find("foot_ik_l"));
+        pose.transforms[(int)Pose.Part.foot_r].toTransform(rig_transform.Find("foot_ik_r"));
+        pose.transforms[(int)Pose.Part.hand_l].toTransform(rig_transform.Find("hand_ik_l"));
+        pose.transforms[(int)Pose.Part.hand_r].toTransform(rig_transform.Find("hand_ik_r"));    
+    }
+
     private void Update() {
         if(ImGui.Begin("Editor")){
             if(ImGui.Button("Save Pose")){
@@ -156,14 +181,7 @@ public class AnimationEditor : MonoBehaviour {
             int to_delete = -1;
             foreach(var pose in poses){
                 if(ImGui.Button($"Apply##{index}")){
-                    var rig_transform = rig.transform;
-                    pose.transforms[(int)Pose.Part.rig].toTransform(rig_transform);
-                    pose.transforms[(int)Pose.Part.body].toTransform(rig_transform.Find("body_ik"));
-                    pose.transforms[(int)Pose.Part.chest].toTransform(rig_transform.Find("chest_and_mesh"));
-                    pose.transforms[(int)Pose.Part.foot_l].toTransform(rig_transform.Find("foot_ik_l"));
-                    pose.transforms[(int)Pose.Part.foot_r].toTransform(rig_transform.Find("foot_ik_r"));
-                    pose.transforms[(int)Pose.Part.hand_l].toTransform(rig_transform.Find("hand_ik_l"));
-                    pose.transforms[(int)Pose.Part.hand_r].toTransform(rig_transform.Find("hand_ik_r"));
+                    ApplyPose(rig.transform, pose);
                 }
                 ImGui.SameLine();
                 if(renaming != index && ImGui.Button(pose.name)){
@@ -171,7 +189,14 @@ public class AnimationEditor : MonoBehaviour {
                     str0 = pose.name.PadRight(128, '\0').ToCharArray();
                 } else if(renaming == index){
                     if(ImGui.InputText("", str0, ImGuiInputTextFlags.EnterReturnsTrue)){
-                        pose.name = new string(str0);
+                        int len = 0;
+                        for(int i=0; i<128; ++i){
+                            if(str0[i] == '\0'){
+                                len = i;
+                                break;
+                            }
+                        }
+                        pose.name = new string(str0, 0, len);
                         renaming = -1;
                     }
                 }
