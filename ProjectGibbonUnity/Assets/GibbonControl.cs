@@ -110,9 +110,9 @@ public class GibbonControl : MonoBehaviour
         }
         hands[next_hand].gripping = false;
         
-        gibbon.GetComponent<Animator>().runtimeAnimatorController.animationClips[3].SampleAnimation(gibbon, 0.0f);
-        character.GetTransforms(gibbon.transform.Find("rig/root"));
-        character.Draw();            
+        //gibbon.GetComponent<Animator>().runtimeAnimatorController.animationClips[3].SampleAnimation(gibbon, 0.0f);
+        //character.GetTransforms(gibbon.transform.Find("rig/root"));
+        //character.Draw();            
     }
 
     static void DrawCircle(Vector3 pos, float radius){
@@ -284,7 +284,7 @@ public class GibbonControl : MonoBehaviour
         }
         var cam_pos = Camera.main.transform.position;
         cam_pos[0] = pos[0];
-        cam_pos = gibbon.transform.position - Vector3.forward * 3.0f;
+        //cam_pos = gibbon.transform.position - Vector3.forward * 3.0f;
         Camera.main.transform.position = cam_pos;
     }
 }
