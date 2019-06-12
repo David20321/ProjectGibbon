@@ -15,7 +15,7 @@ public class GibbonGame : MonoBehaviour
     }
 
     Vector3 clicked_point = Vector3.zero;
-
+    
     // Update is called once per frame
     void Update() {
         if(ImGui.Begin("Editor")){
