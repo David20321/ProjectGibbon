@@ -18,7 +18,7 @@ public class GibbonControl : MonoBehaviour
     float last_x;
 
     HandState[] hands;
-    int next_hand = 0;
+    int next_hand = 1;
     const float arm_length = 0.8f;
     Character character = new Character();
 
@@ -176,6 +176,7 @@ public class GibbonControl : MonoBehaviour
         AddPoint((float3)(shoulder.position+Vector3.right * (neck.position[0] - shoulder.position[0])*2f), "shoulder_l");
         AddPoint((float3)(grip.position+Vector3.right * (neck.position[0] - grip.position[0])*2f), "hand_l");
         AddPoint(new float3(neck.position[0], hip.position[1], neck.position[2]), "body");
+        points[4].mass = 6f;
         AddBone("arm_r", 0, 1);
         bones[bones.Count-1].length[0] *= 0.25f; // Allow arm to flex
         AddBone("arm_l", 2, 3);
@@ -254,25 +255,51 @@ public class GibbonControl : MonoBehaviour
         }
     }
 
+    float d_key_held = float.MinValue;
+
     private void FixedUpdate() {
         float time_sqrd = Time.fixedDeltaTime * Time.fixedDeltaTime;
         float side_speed = 5.0f;
         float max_speed = 15f;
         var acc = new float3(0, Physics.gravity[1], 0);
-        if(Input.GetKey(KeyCode.A)){
+        /*if(Input.GetKey(KeyCode.A)){
             acc -= (float3)Vector3.right * side_speed;
         }
         if(Input.GetKey(KeyCode.D)){
             acc += (float3)Vector3.right * side_speed;
-        }
+        }*/
 
         for(int i=0; i<points.Count; ++i){
             var point = points[i];
+            point.temp = point.pos;
             if(!point.pinned){
-                point.temp = point.pos;
                 point.pos = point.pos + (point.pos - point.old_pos) +  acc * time_sqrd;
             }
         }
+
+        
+        if(Input.GetKey(KeyCode.D)){
+            if(d_key_held == float.MinValue){
+                d_key_held = Time.time - Time.deltaTime;
+            }
+            var grip_pos = (float3)hands[1-next_hand].pos;
+            grip_pos[0] += arm_length;
+            float max_grab_force = 30f; 
+            var offset_len = time_sqrd * max_grab_force;// math.min(1f, d_key_held*1f) * max_grab_force;
+            int hand_point = next_hand*2+1;
+            if(math.distance(points[hand_point].pos, grip_pos) < offset_len){
+                hands[next_hand].gripping = true;
+                hands[next_hand].pos = grip_pos;
+                next_hand = 1-next_hand;
+                hands[next_hand].gripping = false;
+                d_key_held = float.MinValue;
+            } else {
+                points[hand_point].pos += math.normalize((float3)grip_pos - points[hand_point].pos) * offset_len;
+            }
+        } else {
+            d_key_held = float.MinValue;
+        }
+
         for(int i=0; i<bones.Count; ++i){
             var bone = bones[i];
             int num_pinned = 0;
@@ -295,14 +322,15 @@ public class GibbonControl : MonoBehaviour
                             unpinned_point.pos = points[pinned].pos + (points[unpinned].pos - points[pinned].pos) / curr_len * bone.length[1];
                         }
                     } else {
-                        var mid = (points[bone.points[0]].pos + points[bone.points[1]].pos) * 0.5f;
                         var offset = (points[bone.points[1]].pos - points[bone.points[0]].pos) / curr_len;
+                        float rel_mass = points[bone.points[1]].mass / (points[bone.points[0]].mass + points[bone.points[1]].mass);
+                        var mid = points[bone.points[0]].pos * (1f-rel_mass) + points[bone.points[1]].pos * rel_mass;
                         if(curr_len < bone.length[0]){
-                            points[bone.points[0]].pos = mid - offset * bone.length[0] * 0.5f;
-                            points[bone.points[1]].pos = mid + offset * bone.length[0] * 0.5f;
+                            points[bone.points[0]].pos = mid - offset * bone.length[0] * rel_mass;
+                            points[bone.points[1]].pos = mid + offset * bone.length[0] * (1f-rel_mass);
                         } else if(curr_len > bone.length[1]){
-                            points[bone.points[0]].pos = mid - offset * bone.length[1] * 0.5f;
-                            points[bone.points[1]].pos = mid + offset * bone.length[1] * 0.5f;
+                            points[bone.points[0]].pos = mid - offset * bone.length[1] * rel_mass;
+                            points[bone.points[1]].pos = mid + offset * bone.length[1] * (1f-rel_mass);
                         }
                     }
                 }
@@ -310,9 +338,7 @@ public class GibbonControl : MonoBehaviour
         }
         for(int i=0; i<points.Count; ++i){
             var point = points[i];
-            if(!point.pinned){
-                point.old_pos = point.temp;
-            }
+            point.old_pos = point.temp;
         }
     }
 }
