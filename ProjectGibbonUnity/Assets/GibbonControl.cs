@@ -11,8 +11,6 @@ public class GibbonControl : MonoBehaviour
 {
     public GameObject gibbon;
     
-    Vector3 last_pos;
-    Vector3 pos;
     class HandState {
         public Vector3 pos;
         public bool gripping;
@@ -109,13 +107,14 @@ public class GibbonControl : MonoBehaviour
         public float3 pos;
         public float3 old_pos;
         public float3 temp;
+        public float mass;
         public bool pinned;
         public string name;
     }
 
     class VerletBone {
         public int2 points;
-        public float length;
+        public float2 length;
         public string name;
     }
 
@@ -128,6 +127,7 @@ public class GibbonControl : MonoBehaviour
         point.old_pos = pos;
         point.pinned = false;
         point.name = name;
+        point.mass = 1.0f;
         points.Add(point);
     }
     
@@ -142,7 +142,7 @@ public class GibbonControl : MonoBehaviour
 
     // Start is called before the first frame update
     void Start() {
-        pos = Vector3.zero;
+        var pos = Vector3.zero;
         hands = new HandState[2];
         for(int i=0; i<2; ++i){
             hands[i] = new HandState();
@@ -176,11 +176,10 @@ public class GibbonControl : MonoBehaviour
         AddPoint((float3)(shoulder.position+Vector3.right * (neck.position[0] - shoulder.position[0])*2f), "shoulder_l");
         AddPoint((float3)(grip.position+Vector3.right * (neck.position[0] - grip.position[0])*2f), "hand_l");
         AddPoint(new float3(neck.position[0], hip.position[1], neck.position[2]), "body");
-        var point = points[1];
-        point.pinned = true;
-        points[1] = point;
         AddBone("arm_r", 0, 1);
+        bones[bones.Count-1].length[0] *= 0.25f; // Allow arm to flex
         AddBone("arm_l", 2, 3);
+        bones[bones.Count-1].length[0] *= 0.25f;
         AddBone("tri_top", 0, 2);
         AddBone("tri_r", 0, 4);
         AddBone("tri_l", 2, 4);
@@ -226,87 +225,29 @@ public class GibbonControl : MonoBehaviour
             //vel = Vector3.Lerp(target_vel, vel, Mathf.Pow(0.01f, Time.deltaTime));
             //transform.position += vel * Time.deltaTime;
         }
-
-        DebugDraw.Sphere(pos, Color.red, Vector3.one * 0.25f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Normal);
-        Vector3 grip_pos = pos;
-        for(int i=0; i<2; ++i){
-            if(hands[i].gripping){
-                DebugDraw.Line(hands[i].pos, pos, i==0?Color.green:Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Normal);
-                DrawCircle(hands[i].pos, arm_length);
-                grip_pos = hands[i].pos;
-            }
-        }
         
         
-        if(Input.GetMouseButtonDown(0) && (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt) ) ) {
-            // Ctrl click
-            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            var t = -ray.origin.z / ray.direction.z;
-            clicked_point = ray.origin + ray.direction * t; 
-        }
-
-        // Trajectory
-        int num_steps = 20;
-        var sim_pos = pos;
-        var sim_vel = (pos - last_pos) / Time.fixedDeltaTime;//Vector3.right * 10f;
-        for(int i=0; i<num_steps; ++i){
-            var start = sim_pos;
-            sim_vel += Physics.gravity * Time.fixedDeltaTime;
-            sim_pos += sim_vel * Time.fixedDeltaTime;
-            var end = sim_pos;
-            DebugDraw.Line(start, end, new Color(0.0f, 1.0f, 0.0f, 1.0f), DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Normal);
-        }
-        
-        // Calculate trajectory between two circles
-        // We want release angle and speed
-
-        DrawCircle(clicked_point, arm_length);
-
-        var vec = (clicked_point - grip_pos).normalized;
-        var perp = new Vector3(vec[1], -vec[0], 0f);
-
-        DebugDraw.Line(grip_pos + perp * arm_length, clicked_point + perp * arm_length, Color.yellow, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Normal);
-
-        if(ImGui.Begin("Gibbon")){
-            var vel = (pos - last_pos) / Time.fixedDeltaTime;
-            ImGui.Text($"X vel: {vel[0]}");   
-        }
-        ImGui.End();
-        
+        /*
         var editor = GetComponent<AnimationEditor>();
         foreach(var pose in editor.poses){
             if(pose.name == "Hang_pole"){
                 AnimationEditor.ApplyPose(gibbon.transform, pose);                
             }
-        }
-        var hand = gibbon.transform.Find("hand_ik_r");
+        }*/
+        
         if(hands[0].gripping){    
-            var gibbon_pos = gibbon.transform.position;
-            gibbon_pos[0] = hands[0].pos[0];
-            gibbon.transform.position = gibbon_pos;
-
-            var old_hand_pos = hand.transform.position;
-            var old_hand_rot = hand.transform.rotation;
-
-            
-            /*gibbon.transform.position -= old_hand_pos;
-            gibbon.transform.rotation = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos) * gibbon.transform.rotation;
-            gibbon.transform.position = Quaternion.LookRotation(Vector3.forward, hands[0].pos - pos) * gibbon.transform.position;
-            gibbon.transform.position += old_hand_pos;
-    */   
-            gibbon.transform.position = pos;
-
-            hand.transform.position = old_hand_pos;
-            hand.transform.rotation = old_hand_rot; 
+            points[1].pos = hands[0].pos;
+            points[1].pinned = true;
         } else {
-            var gibbon_pos = gibbon.transform.position;
-            gibbon_pos = pos;
-            gibbon.transform.position = gibbon_pos;
-
-            hand.transform.position -= Vector3.up * 0.8f;
-            var vel = (pos - last_pos) / Time.fixedDeltaTime;
-            hand.transform.position += vel / (vel.magnitude+1.2f);
+            points[1].pinned = false;
         }
+        if(hands[1].gripping){    
+            points[3].pos = hands[1].pos;
+            points[3].pinned = true;
+        } else {
+            points[3].pinned = false;
+        }
+
 
         for(int i=0; i<bones.Count; ++i){
             DebugDraw.Line(points[bones[i].points[0]].pos,points[bones[i].points[1]].pos, Color.white, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
@@ -314,101 +255,22 @@ public class GibbonControl : MonoBehaviour
     }
 
     private void FixedUpdate() {
-        {
-        var temp_pos = pos;
-        var old_vel = (pos - last_pos) / Time.fixedDeltaTime;
-        var acc = Physics.gravity;
+        float time_sqrd = Time.fixedDeltaTime * Time.fixedDeltaTime;
         float side_speed = 5.0f;
         float max_speed = 15f;
-        //if(hands[0].gripping || hands[1].gripping){
-            if(Input.GetKey(KeyCode.A) && old_vel[0] > -max_speed){
-                acc -= Vector3.right * side_speed;
-            }
-            if(Input.GetKey(KeyCode.D) && old_vel[0] < max_speed){
-                acc += Vector3.right * side_speed;
-            }
-            if(Input.GetKey(KeyCode.W)){
-                acc -= Physics.gravity * 1.5f;
-            }
-        //}
-
-        // If we want to go right
-        // If grabbing
-            // If we don't have enough velocity for continuous contact, then just swing in place to build momentum
-            // Else if we have enough momentum to launch into air, then do that at 45 degrees
-            // Else grab next point and release old point
-        // Else if in air
-            // If we are moving down and below branch, then find grab point that we are moving tangent to (ray cast perp to curr vel and find branch point)
-
-        if(pos[1] < 0.0f && old_vel[1] < 0.0f && (!hands[0].gripping && !hands[1].gripping)){
-            if(true){
-                var tangent = new Vector3(-old_vel[1], old_vel[0], 0.0f).normalized;
-                var t = -pos[1]/tangent[1];
-                var grab_point = pos + t * tangent;
-                if(Mathf.Abs(t) > arm_length){
-                    hands[0].gripping = true;
-                    hands[0].pos = grab_point;
-                    var dir = grab_point - pos;
-                    var len = dir.magnitude;
-                    pos += dir * (len - arm_length);
-                    temp_pos += dir * (len - arm_length);
-                }
-            } else { // Continuous contact
-                float y = ((-pos[1])/arm_length);
-                float x = Mathf.Sqrt(1.0f - y*y);
-                if(Input.GetKey(KeyCode.D)){
-                    float potential_x = pos[0] + x * arm_length;
-                    if(x < last_x && potential_x > hands[1-next_hand].pos[0] + 0.01f){
-                        hands[next_hand].gripping = true;
-                        hands[next_hand].pos[0] = potential_x;
-                        next_hand = 1-next_hand;
-                        hands[next_hand].gripping = false;
-                    }
-                } else if(Input.GetKey(KeyCode.A)){
-                    float potential_x = pos[0] - x * arm_length;
-                    if(x < last_x && potential_x < hands[1-next_hand].pos[0] - 0.01f){
-                        hands[next_hand].gripping = true;
-                        hands[next_hand].pos[0] = potential_x;
-                        next_hand = 1-next_hand;
-                        hands[next_hand].gripping = false;
-                    }
-                }
-                last_x = x;
-            }
+        var acc = new float3(0, Physics.gravity[1], 0);
+        if(Input.GetKey(KeyCode.A)){
+            acc -= (float3)Vector3.right * side_speed;
+        }
+        if(Input.GetKey(KeyCode.D)){
+            acc += (float3)Vector3.right * side_speed;
         }
 
-        //y = gravity[1]*t*t*0.5f + vy*t;
-
-        pos = pos + (pos - last_pos) + acc * Time.fixedDeltaTime * Time.fixedDeltaTime;
-        //if(pos[1] < 0f){
-            for(int i=0; i<2; ++i){
-                if(hands[i].gripping && Vector3.Distance(hands[i].pos, pos) > arm_length){
-                    pos = Vector3.Normalize(pos - hands[i].pos) * arm_length + hands[i].pos;
-                }
-            }
-        //}
-        last_pos = temp_pos;
-        var vel = (pos - last_pos) / Time.fixedDeltaTime;
-        if(Input.GetKey(KeyCode.D) && vel[0] < old_vel[0] && vel[1] > 3.0f){
-            hands[0].gripping = false;
-            hands[1].gripping = false;
-        }
-        if(Input.GetKey(KeyCode.A) && vel[0] > old_vel[0] && vel[1] > 3.0f){
-            hands[0].gripping = false;
-            hands[1].gripping = false;
-        }
-        var cam_pos = Camera.main.transform.position;
-        cam_pos[0] = pos[0];
-        //cam_pos = gibbon.transform.position - Vector3.forward * 3.0f;
-        Camera.main.transform.position = cam_pos;
-        }
-        
         for(int i=0; i<points.Count; ++i){
             var point = points[i];
             if(!point.pinned){
                 point.temp = point.pos;
-                var acc = new float3(0, Physics.gravity[1], 0);
-                point.pos = point.pos + (point.pos - point.old_pos) +  acc * Time.fixedDeltaTime * Time.fixedDeltaTime;
+                point.pos = point.pos + (point.pos - point.old_pos) +  acc * time_sqrd;
             }
         }
         for(int i=0; i<bones.Count; ++i){
@@ -427,12 +289,21 @@ public class GibbonControl : MonoBehaviour
                             unpinned = bone.points[1];
                         }
                         var unpinned_point = points[unpinned];
-                        unpinned_point.pos = points[pinned].pos + (points[unpinned].pos - points[pinned].pos) / curr_len * bone.length;
+                        if(curr_len < bone.length[0]){
+                            unpinned_point.pos = points[pinned].pos + (points[unpinned].pos - points[pinned].pos) / curr_len * bone.length[0];
+                        } else if(curr_len > bone.length[1]){
+                            unpinned_point.pos = points[pinned].pos + (points[unpinned].pos - points[pinned].pos) / curr_len * bone.length[1];
+                        }
                     } else {
                         var mid = (points[bone.points[0]].pos + points[bone.points[1]].pos) * 0.5f;
                         var offset = (points[bone.points[1]].pos - points[bone.points[0]].pos) / curr_len;
-                        points[bone.points[0]].pos = mid - offset * bone.length * 0.5f;
-                        points[bone.points[1]].pos = mid + offset * bone.length * 0.5f;
+                        if(curr_len < bone.length[0]){
+                            points[bone.points[0]].pos = mid - offset * bone.length[0] * 0.5f;
+                            points[bone.points[1]].pos = mid + offset * bone.length[0] * 0.5f;
+                        } else if(curr_len > bone.length[1]){
+                            points[bone.points[0]].pos = mid - offset * bone.length[1] * 0.5f;
+                            points[bone.points[1]].pos = mid + offset * bone.length[1] * 0.5f;
+                        }
                     }
                 }
             }
