@@ -118,6 +118,7 @@ public class GibbonControl : MonoBehaviour
         public int2 points;
         public float2 length;
         public string name;
+        public bool enabled;
     }
 
     class BindPart {
@@ -152,12 +153,15 @@ public class GibbonControl : MonoBehaviour
             bone.points[1] = b;
             bone.length = math.distance(points[b].pos, points[a].pos);
             bone.name = name;
+            bone.enabled = true;
             bones.Add(bone);
         }
 
         public void DrawBones(Color color){
             for(int i=0; i<bones.Count; ++i){
-                DebugDraw.Line(points[bones[i].points[0]].pos,points[bones[i].points[1]].pos, color, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+                if(bones[i].enabled){
+                    DebugDraw.Line(points[bones[i].points[0]].pos,points[bones[i].points[1]].pos, color, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+                }
             }       
         }
 
@@ -175,6 +179,9 @@ public class GibbonControl : MonoBehaviour
 
         public void Constraints() {
             for(int i=0; i<bones.Count; ++i){
+                if(!bones[i].enabled){
+                    continue;
+                }
                 var bone = bones[i];
                 int num_pinned = 0;
                 if(points[bone.points[0]].pinned) {++num_pinned;}
@@ -318,7 +325,18 @@ public class GibbonControl : MonoBehaviour
     float3 com;
 
     float3 pendulum_center;
-    float pendulum_length = 1f;
+    float pendulum_length = 0.9f;
+
+    void GripPoint(float3 pos){
+        hands[next_hand].pos = pos;
+        hands[next_hand].gripping = true;
+        hands[1-next_hand].gripping = false;
+        next_hand = 1 - next_hand;
+        pendulum.points[0].pos = pos;
+        pendulum.points[2].pos = pos;
+        pendulum.bones[0].enabled = true;
+        pendulum.bones[1].enabled = true;
+    }
 
     // Update is called once per frame
     void Update()
@@ -366,6 +384,18 @@ public class GibbonControl : MonoBehaviour
         arms.DrawBones(Color.white);
         pendulum.DrawBones(Color.blue);
         
+        if(Input.GetKeyDown(KeyCode.Space)){
+            if(hands[0].gripping || hands[1].gripping ){
+                hands[0].gripping = false;
+                hands[1].gripping = false;
+                pendulum.bones[0].enabled = false;
+                pendulum.bones[1].enabled = false;
+            } else {
+                var point = pendulum.points[1].pos;
+                point[1] = 0f;
+                GripPoint(point);
+            }
+        }
 
         float total_mass = 0f;
         var old_com = com;
@@ -404,6 +434,9 @@ public class GibbonControl : MonoBehaviour
         
             DebugDraw.Line(pendulum_center, pendulum_pos, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );    
         }
+
+        DebugDraw.Sphere(pendulum.points[1].pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+        
     }
     
     float grabbed_time = 0f;
@@ -434,15 +467,8 @@ public class GibbonControl : MonoBehaviour
 
             if(horz_input != 0.0f){
                 var grab_point = (float3)hands[1-next_hand].pos + new float3(arm_length * 1.8f * horz_input,0,0);
-                if(math.distance(pendulum.points[1].pos, grab_point) < arm_length){            
-                    pendulum.points[next_hand*2].pos = grab_point;
-                    pendulum.points[next_hand*2].pinned = true;
-                    hands[next_hand].pos = grab_point;
-                    hands[next_hand].gripping = true;
-                    next_hand = 1-next_hand;
-                    hands[next_hand].gripping = false;
-                    pendulum.points[next_hand*2].pos = grab_point;
-                    pendulum.points[next_hand*2].pinned = true;
+                if(math.distance(pendulum.points[1].pos, grab_point) < arm_length){        
+                    GripPoint(grab_point);
                 }
             }
 
@@ -454,11 +480,13 @@ public class GibbonControl : MonoBehaviour
                 pendulum.Constraints();
             }
 
-            DebugDraw.Line(pendulum.points[1].old_pos, pendulum.points[1].pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );
-        
+            const bool draw_com_path = false;
+            if(draw_com_path){
+                DebugDraw.Line(pendulum.points[1].old_pos, pendulum.points[1].pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );
+            }
         }
 
-        bool arms_map = true;
+        bool arms_map = false;
         if(arms_map){
             arms.points[1].pinned = hands[0].gripping;
             if(hands[0].gripping){
