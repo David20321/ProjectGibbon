@@ -10,6 +10,7 @@ namespace Wolfire {
 public class GibbonControl : MonoBehaviour
 {
     public GameObject gibbon;
+    public GameObject display_gibbon;
     
     class HandState {
         public Vector3 pos;
@@ -104,6 +105,7 @@ public class GibbonControl : MonoBehaviour
     float measured_arm_length;
 
     class VerletPoint {
+        public float3 bind_pos;
         public float3 pos;
         public float3 old_pos;
         public float3 temp;
@@ -118,11 +120,23 @@ public class GibbonControl : MonoBehaviour
         public string name;
     }
 
+    class BindPart {
+        public Transform transform;
+        public float4x4 bind_mat;
+        public quaternion bind_rot;
+        public float3 bind_pos;
+    }
+
+    BindPart chest = new BindPart();
+    BindPart arm_l = new BindPart();
+    BindPart arm_r = new BindPart();
+
     List<VerletPoint> points = new List<VerletPoint>();
     List<VerletBone> bones = new List<VerletBone>();
 
     void AddPoint(float3 pos, string name){
         var point = new VerletPoint();
+        point.bind_pos = pos;
         point.pos = pos;
         point.old_pos = pos;
         point.pinned = false;
@@ -138,6 +152,13 @@ public class GibbonControl : MonoBehaviour
         bone.length = math.distance(points[b].pos, points[a].pos);
         bone.name = name;
         bones.Add(bone);
+    }
+
+    void SetBindPart(BindPart part, Transform transform){
+        part.transform = transform;
+        part.bind_mat = transform.localToWorldMatrix;
+        part.bind_pos = transform.position;
+        part.bind_rot = transform.rotation;
     }
 
     // Start is called before the first frame update
@@ -184,6 +205,10 @@ public class GibbonControl : MonoBehaviour
         AddBone("tri_top", 0, 2);
         AddBone("tri_r", 0, 4);
         AddBone("tri_l", 2, 4);
+
+        SetBindPart(chest, display_gibbon.transform.Find("DEF-spine_003"));
+        SetBindPart(arm_l, display_gibbon.transform.Find("DEF-upper_arm_L"));
+        SetBindPart(arm_r, display_gibbon.transform.Find("DEF-upper_arm_R"));
     }
     
 
@@ -236,6 +261,7 @@ public class GibbonControl : MonoBehaviour
             }
         }*/
         
+        var bind_mid = (points[0].bind_pos + points[2].bind_pos + points[4].bind_pos)/3.0f;
         var mid = (points[0].pos + points[2].pos + points[4].pos)/3.0f;
         var forward = math.normalize(math.cross(points[0].pos - points[2].pos, points[0].pos - points[4].pos));
         var up = math.normalize((points[0].pos + points[2].pos)/2.0f - points[4].pos);
@@ -243,8 +269,17 @@ public class GibbonControl : MonoBehaviour
         DebugDraw.Line(mid, mid+forward, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
         DebugDraw.Line(mid, mid+up, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
 
-        gibbon.transform.position = mid;
-        gibbon.transform.rotation = Quaternion.LookRotation(forward, up);
+        chest.transform.rotation = Quaternion.LookRotation(forward, up) * chest.bind_rot;
+        chest.transform.position = mid + (float3)(chest.transform.rotation * (chest.bind_pos - bind_mid));
+
+        arm_l.transform.position = arm_l.bind_pos + (points[2].pos - points[2].bind_pos);
+        arm_l.transform.rotation = Quaternion.LookRotation(points[3].pos - points[2].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(points[3].bind_pos - points[2].bind_pos, Vector3.forward)) * arm_l.bind_rot;
+       
+        arm_r.transform.position = arm_r.bind_pos + (points[0].pos - points[0].bind_pos);
+        arm_r.transform.rotation = Quaternion.LookRotation(points[1].pos - points[0].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(points[1].bind_pos - points[0].bind_pos, Vector3.forward)) * arm_r.bind_rot;
+
+        //gibbon.transform.position = mid;
+        //gibbon.transform.rotation = Quaternion.LookRotation(forward, up);
 
         if(hands[0].gripping){    
             points[1].pos = hands[0].pos;
