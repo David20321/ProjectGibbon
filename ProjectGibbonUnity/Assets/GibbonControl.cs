@@ -428,9 +428,24 @@ public class GibbonControl : MonoBehaviour
             float temp_step = step * 0.1f;
             float time_sqrd = temp_step * temp_step;
             pendulum.StartSim(temp_step);
-            pendulum.points[1].pos[0] += horz_input * time_sqrd * 20f;
+            pendulum.points[1].pos[0] += horz_input * time_sqrd * 2f;
             pendulum.Constraints();
             pendulum.EndSim();
+
+            if(horz_input != 0.0f){
+                var grab_point = (float3)hands[1-next_hand].pos + new float3(arm_length * 1.8f * horz_input,0,0);
+                if(math.distance(pendulum.points[1].pos, grab_point) < arm_length){            
+                    pendulum.points[next_hand*2].pos = grab_point;
+                    pendulum.points[next_hand*2].pinned = true;
+                    hands[next_hand].pos = grab_point;
+                    hands[next_hand].gripping = true;
+                    next_hand = 1-next_hand;
+                    hands[next_hand].gripping = false;
+                    pendulum.points[next_hand*2].pos = grab_point;
+                    pendulum.points[next_hand*2].pinned = true;
+                }
+            }
+
             if(vert_input != 0.0f){
                 pendulum.bones[0].length[0] -= vert_input * temp_step;
                 pendulum.bones[0].length[1] -= vert_input * temp_step;
@@ -438,12 +453,21 @@ public class GibbonControl : MonoBehaviour
                 pendulum.bones[1].length[1] -= vert_input * temp_step;
                 pendulum.Constraints();
             }
+
+            DebugDraw.Line(pendulum.points[1].old_pos, pendulum.points[1].pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );
+        
         }
 
         bool arms_map = true;
         if(arms_map){
-            arms.points[1].pos = pendulum.points[0].pos;
-            arms.points[1].pinned = true;
+            arms.points[1].pinned = hands[0].gripping;
+            if(hands[0].gripping){
+                arms.points[1].pos = pendulum.points[0].pos;
+            }
+            arms.points[3].pinned = hands[1].gripping;
+            if(hands[1].gripping){
+                arms.points[3].pos = pendulum.points[2].pos;
+            }
             arms.StartSim(step);
             for(int j=0; j<1; ++j){
                 float total_mass = 0f;
@@ -456,7 +480,15 @@ public class GibbonControl : MonoBehaviour
                 }
                 com /= total_mass;
                 var offset = pendulum.points[1].pos - com;
-                arms.points[0].pos += offset * total_mass / arms.points[0].mass;
+                if(arms.points[1].pinned && !arms.points[3].pinned){
+                    arms.points[0].pos += offset * total_mass / arms.points[0].mass;
+                } else if(arms.points[3].pinned && !arms.points[1].pinned){
+                    arms.points[2].pos += offset * total_mass / arms.points[2].mass;
+                } else {
+                    var temp_offset = offset * total_mass / (arms.points[0].mass + arms.points[2].mass);
+                    arms.points[0].pos += temp_offset;
+                    arms.points[2].pos += temp_offset;
+                }
                 /*for(int i=0; i<arms.points.Count; ++i){
                     if(arms.points[i].pinned == false){
                         arms.points[i].pos += offset;
