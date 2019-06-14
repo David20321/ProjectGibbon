@@ -236,6 +236,16 @@ public class GibbonControl : MonoBehaviour
             }
         }*/
         
+        var mid = (points[0].pos + points[2].pos + points[4].pos)/3.0f;
+        var forward = math.normalize(math.cross(points[0].pos - points[2].pos, points[0].pos - points[4].pos));
+        var up = math.normalize((points[0].pos + points[2].pos)/2.0f - points[4].pos);
+        
+        DebugDraw.Line(mid, mid+forward, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+        DebugDraw.Line(mid, mid+up, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+
+        gibbon.transform.position = mid;
+        gibbon.transform.rotation = Quaternion.LookRotation(forward, up);
+
         if(hands[0].gripping){    
             points[1].pos = hands[0].pos;
             points[1].pinned = true;
