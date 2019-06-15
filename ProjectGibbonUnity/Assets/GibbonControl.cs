@@ -384,6 +384,18 @@ public class GibbonControl : MonoBehaviour
         arms.DrawBones(Color.white);
         pendulum.DrawBones(Color.blue);
         
+        if(!hands[0].gripping && !hands[1].gripping){
+            var vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
+            var perp = new float3(vel[1], -vel[0], 0f);
+            if(perp[1] < 0){
+                perp = -perp;
+            }
+            perp = math.normalize(perp);
+            float len = -pendulum.points[1].pos[1] / perp[1];
+            var point = pendulum.points[1].pos + perp * len;
+            DebugDraw.Line(pendulum.points[1].pos, point, Color.red, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+        }
+
         if(Input.GetKeyDown(KeyCode.Space)){
             if(hands[0].gripping || hands[1].gripping ){
                 hands[0].gripping = false;
@@ -391,7 +403,21 @@ public class GibbonControl : MonoBehaviour
                 pendulum.bones[0].enabled = false;
                 pendulum.bones[1].enabled = false;
             } else {
-                var point = pendulum.points[1].pos;
+                var vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
+                var perp = new float3(vel[1], -vel[0], 0f);
+                if(perp[1] < 0){
+                    perp = -perp;
+                }
+                perp = math.normalize(perp);
+                float len = -pendulum.points[1].pos[1] / perp[1];
+                pendulum.bones[0].length[0] = len;
+                pendulum.bones[1].length[0] = len;
+                pendulum.bones[0].length[1] = len;
+                pendulum.bones[1].length[1] = len;
+                /*if(len > arm_length){
+                    len = arm_length;
+                }*/
+                var point = pendulum.points[1].pos + perp * len;
                 point[1] = 0f;
                 GripPoint(point);
             }
@@ -417,7 +443,32 @@ public class GibbonControl : MonoBehaviour
             float height = pendulum.points[1].pos[1] - (pendulum.points[0].pos[1] - pendulum.bones[0].length[1]);
             float potential_energy = height*-Physics.gravity[1];
             ImGui.Text($"potential energy: {potential_energy}");   
-            ImGui.Text($"total energy: {kinetic_energy + potential_energy}");   
+            ImGui.Text($"total energy: {kinetic_energy + potential_energy}");  
+            var temp_pos = pendulum.points[1].pos;
+            for(int i=0; i<30; ++i){
+                temp_pos += vel * 0.1f;
+                DebugDraw.Sphere(temp_pos, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+            
+                var perp = new float3(vel[1], -vel[0], 0f);
+                if(perp[1] < 0){
+                    perp = -perp;
+                }
+                if(perp[1] != 0){
+                    perp = math.normalize(perp);
+                    float len = -temp_pos[1] / perp[1];
+                    var point = temp_pos + perp * len;
+                    var color = Color.red;
+                    // Highlight grip if it will be within reach and will be going in the same direction
+                    if(len < 1.0f && len > 0.25f && perp[0] * vel[0] > 0.0f){
+                        color = Color.green;
+                    }
+                    DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+                }
+
+                vel += (float3)Physics.gravity * 0.1f;
+            }
+        
+
         }
         ImGui.End();
 
@@ -457,6 +508,11 @@ public class GibbonControl : MonoBehaviour
             vert_input = -1f;
         }
         
+        // If movement key is held, then look at trajectory
+        // If we have a good jump trajectory, then let go and follow trajectory and grab at best grab point
+        // Otherwise if we're at the end of our swing and can reach the next handhold, then start a new swing (going backwards slightly for momentum)
+        // Otherwise swing more to get momentum
+
         for(int i=0; i<10; ++i){
             float temp_step = step * 0.1f;
             float time_sqrd = temp_step * temp_step;
