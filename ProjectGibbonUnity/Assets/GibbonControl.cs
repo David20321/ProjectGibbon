@@ -336,6 +336,11 @@ public class GibbonControl : MonoBehaviour
         pendulum.points[2].pos = pos;
         pendulum.bones[0].enabled = true;
         pendulum.bones[1].enabled = true;
+        float len = math.distance(pendulum.points[0].pos, pendulum.points[1].pos);
+        pendulum.bones[0].length[0] = len;
+        pendulum.bones[1].length[0] = len;
+        pendulum.bones[0].length[1] = len;
+        pendulum.bones[1].length[1] = len;
     }
 
     // Update is called once per frame
@@ -410,10 +415,6 @@ public class GibbonControl : MonoBehaviour
                 }
                 perp = math.normalize(perp);
                 float len = -pendulum.points[1].pos[1] / perp[1];
-                pendulum.bones[0].length[0] = len;
-                pendulum.bones[1].length[0] = len;
-                pendulum.bones[0].length[1] = len;
-                pendulum.bones[1].length[1] = len;
                 /*if(len > arm_length){
                     len = arm_length;
                 }*/
@@ -432,7 +433,6 @@ public class GibbonControl : MonoBehaviour
         }
         com /= total_mass;
         DebugDraw.Sphere(com, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
-        //DebugDraw.Line(old_com, com, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );
         
         if(ImGui.Begin("Gibbon")){
             //ImGui.Text($"pendulum_length: {math.distance(arms.points[1].pos, com)}");
@@ -444,31 +444,6 @@ public class GibbonControl : MonoBehaviour
             float potential_energy = height*-Physics.gravity[1];
             ImGui.Text($"potential energy: {potential_energy}");   
             ImGui.Text($"total energy: {kinetic_energy + potential_energy}");  
-            var temp_pos = pendulum.points[1].pos;
-            for(int i=0; i<30; ++i){
-                temp_pos += vel * 0.1f;
-                DebugDraw.Sphere(temp_pos, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
-            
-                var perp = new float3(vel[1], -vel[0], 0f);
-                if(perp[1] < 0){
-                    perp = -perp;
-                }
-                if(perp[1] != 0){
-                    perp = math.normalize(perp);
-                    float len = -temp_pos[1] / perp[1];
-                    var point = temp_pos + perp * len;
-                    var color = Color.red;
-                    // Highlight grip if it will be within reach and will be going in the same direction
-                    if(len < 1.0f && len > 0.25f && perp[0] * vel[0] > 0.0f){
-                        color = Color.green;
-                    }
-                    DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
-                }
-
-                vel += (float3)Physics.gravity * 0.1f;
-            }
-        
-
         }
         ImGui.End();
 
@@ -512,8 +487,72 @@ public class GibbonControl : MonoBehaviour
         // If we have a good jump trajectory, then let go and follow trajectory and grab at best grab point
         // Otherwise if we're at the end of our swing and can reach the next handhold, then start a new swing (going backwards slightly for momentum)
         // Otherwise swing more to get momentum
+        
+        if(horz_input != 0.0f && (hands[0].gripping || hands[1].gripping)) {
+            var temp_pos = pendulum.points[1].pos;
+            float3 vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
+            for (int i = 0; i < 30; ++i) {
+                temp_pos += vel * Time.fixedDeltaTime;
+                DebugDraw.Sphere(temp_pos, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
 
-        for(int i=0; i<10; ++i){
+                var perp = new float3(vel[1], -vel[0], 0f);
+                if (perp[1] < 0) {
+                    perp = -perp;
+                }
+                bool any_good_trajectory = false;
+                if (perp[1] != 0) {
+                    perp = math.normalize(perp);
+                    float len = -temp_pos[1] / perp[1];
+                    var point = temp_pos + perp * len;
+                    var color = Color.red;
+                    float dist = math.distance(point, temp_pos);
+                    // Highlight grip if it will be within reach and will be going in the same direction
+                    if (dist < 1.0f && dist > 0.75f && perp[0] * vel[0] > 0.0f && math.abs(point[0] - hands[1-next_hand].pos[0]) > arm_length * 2f) {
+                        color = Color.green;
+                        any_good_trajectory = true;
+                    }
+                    DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+                    if(any_good_trajectory){
+                        // let go
+                        hands[0].gripping = false;
+                        hands[1].gripping = false;
+                        pendulum.bones[0].enabled = false;
+                        pendulum.bones[1].enabled = false;
+                        Debug.Log("LET GO");
+                        break;
+                    }
+                }
+
+                vel += (float3)Physics.gravity * 0.1f;
+            }
+        }
+
+        for (int i=0; i<10; ++i){
+            if(!hands[0].gripping && !hands[1].gripping){
+                float3 vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
+                var temp_pos = pendulum.points[1].pos;
+
+                var perp = new float3(vel[1], -vel[0], 0f);
+                if (perp[1] < 0) {
+                    perp = -perp;
+                }
+                if (perp[1] != 0) {
+                    perp = math.normalize(perp);
+                    float len = -temp_pos[1] / perp[1];
+                    var point = temp_pos + perp * len;
+                    var color = Color.red;
+                    float dist = math.distance(point, temp_pos);
+                    // Highlight grip if it will be within reach and will be going in the same direction
+                    if (dist < 1.0f && dist > 0.75f && perp[0] * vel[0] > 0.0f && math.abs(point[0] - hands[1-next_hand].pos[0]) > arm_length * 2f) {
+                        color = Color.green;
+                        GripPoint(point);
+                        Debug.Log("GRAB");
+                        break;
+                    }
+                    DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+                }
+            }
+
             float temp_step = step * 0.1f;
             float time_sqrd = temp_step * temp_step;
             pendulum.StartSim(temp_step);
@@ -521,20 +560,29 @@ public class GibbonControl : MonoBehaviour
             pendulum.Constraints();
             pendulum.EndSim();
 
+            /*
             if(horz_input != 0.0f){
                 var grab_point = (float3)hands[1-next_hand].pos + new float3(arm_length * 1.8f * horz_input,0,0);
                 if(math.distance(pendulum.points[1].pos, grab_point) < arm_length){        
                     GripPoint(grab_point);
                 }
-            }
+            }*/
+            
+                for(int a=0; a<2; ++a){
+                    for(int b=0; b<2; ++b){
+                        pendulum.bones[a].length[b] = Mathf.MoveTowards(pendulum.bones[a].length[b], pendulum_length, temp_step);
+                    }
+                }
+                pendulum.Constraints();
 
+            /*
             if(vert_input != 0.0f){
                 pendulum.bones[0].length[0] -= vert_input * temp_step;
                 pendulum.bones[0].length[1] -= vert_input * temp_step;
                 pendulum.bones[1].length[0] -= vert_input * temp_step;
                 pendulum.bones[1].length[1] -= vert_input * temp_step;
                 pendulum.Constraints();
-            }
+            }*/
 
             const bool draw_com_path = false;
             if(draw_com_path){
