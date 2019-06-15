@@ -265,8 +265,7 @@ public class GibbonControl : MonoBehaviour
         pendulum.bones[0].length[1] = len;
         pendulum.bones[1].length[1] = len;
     }
-
-    Vector3 next_handhold;
+    
     float swing_time = 0f;
 
     // Update is called once per frame
@@ -360,39 +359,7 @@ public class GibbonControl : MonoBehaviour
         }
         com /= total_mass;
         DebugDraw.Sphere(com, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
-        
-        float horz_input = 0f;
-        float vert_input = 0f;
-        if(Input.GetKey(KeyCode.D)){
-            horz_input = 1f;
-        }
-        if(Input.GetKey(KeyCode.A)){
-            horz_input = -1f;
-        }
-        if(Input.GetKey(KeyCode.W)){
-            vert_input = 1f;
-        }
-        if(Input.GetKey(KeyCode.S)){
-            vert_input = -1f;
-        }
-        var old_pos = simple_pos;
-        simple_vel[0] += horz_input * Time.deltaTime;
-        simple_pos += simple_vel * Time.deltaTime;
-        float amplitude = math.abs(simple_vel[0])/12f;
-        float min_height = -1f + amplitude * 0.5f;
-        swing_time = Time.time*8f/(math.PI*2f);
-        simple_pos[1] = (min_height + (math.sin(swing_time * (math.PI*2f))+1f)*amplitude) * pendulum_length;
-        DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
-        //DebugDraw.Line(old_pos, simple_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );    
-        float next_trough_time = ((math.ceil(swing_time)-0.25f) * (math.PI * 2.0f))/8f;
-        next_handhold = simple_pos + simple_vel * (next_trough_time-Time.time);
-        next_handhold[1] = 0.0f;
-        DebugDraw.Sphere(next_handhold, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
-        if(math.distance(next_handhold, simple_pos) < pendulum_length){
-        DebugDraw.Line(simple_pos, next_handhold, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
-        
-        }
-        
+                
         if(ImGui.Begin("Gibbon")){
             //ImGui.Text($"pendulum_length: {math.distance(arms.points[1].pos, com)}");
             //DebugDraw.Line(arms.points[1].pos, com, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );    
@@ -429,6 +396,15 @@ public class GibbonControl : MonoBehaviour
     
     float grabbed_time = 0f;
 
+    float3 MoveTowards(float3 a, float3 b, float max_dist){
+        float len = math.distance(a,b);
+        if(len < max_dist){
+            return b;
+        } else {
+            return a + (b-a)/len*max_dist;
+        }
+    }
+
     void Step(float step) {
         float horz_input = 0f;
         float vert_input = 0f;
@@ -444,6 +420,28 @@ public class GibbonControl : MonoBehaviour
         if(Input.GetKey(KeyCode.S)){
             vert_input = -1f;
         }
+
+        
+        var old_pos = simple_pos;
+        simple_vel[0] += horz_input * Time.deltaTime * 5f;
+        simple_vel[0] = math.clamp(simple_vel[0], -15f, 15f);
+        simple_pos += simple_vel * Time.deltaTime;
+        float amplitude = math.pow(math.abs(simple_vel[0])/12f + 1f, 0.8f)-1f;
+        float min_height = -1f + amplitude * 0.5f;
+        var old_swing_time = swing_time;
+        swing_time = Time.time*8f/(math.PI*2f);
+        if(math.ceil(old_swing_time) != math.ceil(swing_time)){
+            next_hand = 1-next_hand;
+        }
+        simple_pos[1] = (min_height + (math.sin((swing_time-0.1f) * (math.PI*2f))+1f)*amplitude) * pendulum_length;
+        DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        //DebugDraw.Line(old_pos, simple_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );    
+        float next_trough_time = ((math.ceil(swing_time)-0.25f) * (math.PI * 2.0f))/8f;
+        hands[next_hand].pos = simple_pos + simple_vel * (next_trough_time-Time.time);
+        hands[next_hand].pos[1] = 0.0f;
+        DebugDraw.Sphere(hands[0].pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        DebugDraw.Sphere(hands[1].pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        
         
         // If movement key is held, then look at trajectory
         // If we have a good jump trajectory, then let go and follow trajectory and grab at best grab point
@@ -572,7 +570,12 @@ public class GibbonControl : MonoBehaviour
             } else {
                 arms.points[3].pos = arms.points[2].pos + new float3(measured_arm_length,0,0);
             }*/
-            arms.points[3].pos = next_handhold;
+            
+            for(int i=0; i<2; ++i){
+               // if((hands[i].pos[0] - simple_pos[0]) * simple_vel[0] > 0f){
+                    arms.points[i*2+1].pos = MoveTowards(arms.points[i*2+1].pos, hands[i].pos, math.max(0f, math.pow(math.cos((swing_time+0.25f+(1-i))*math.PI*1f)*0.5f+0.5f, 1f)) * step * 5f);
+                //}   
+            }
             arms.StartSim(step);
             for(int j=0; j<4; ++j){
                 float total_mass = 0f;
@@ -599,11 +602,15 @@ public class GibbonControl : MonoBehaviour
                         arms.points[i].pos += offset;
                     }
                 }
+                // Apply torque to keep torso upright
                 float step_sqrd = step*step;
-                float force = 10f;
+                float force = 20f;
                 arms.points[4].pos[1] -= step_sqrd * force;
                 arms.points[0].pos[1] += step_sqrd * force * 0.5f;
                 arms.points[2].pos[1] += step_sqrd * force * 0.5f;
+                arms.points[0].pos[2] += step_sqrd * simple_vel[0];
+                arms.points[2].pos[2] -= step_sqrd * simple_vel[0];
+                arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 2f; // Apply backwards force to maintain forwards tilt
                 arms.Constraints();
             }
             arms.EndSim();
