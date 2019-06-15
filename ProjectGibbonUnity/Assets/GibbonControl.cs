@@ -444,6 +444,7 @@ public class GibbonControl : MonoBehaviour
             float potential_energy = height*-Physics.gravity[1];
             ImGui.Text($"potential energy: {potential_energy}");   
             ImGui.Text($"total energy: {kinetic_energy + potential_energy}");  
+            ImGui.Text($"horz speed: {math.abs(vel[0])}");  
         }
         ImGui.End();
 
@@ -595,13 +596,17 @@ public class GibbonControl : MonoBehaviour
             arms.points[1].pinned = hands[0].gripping;
             if(hands[0].gripping){
                 arms.points[1].pos = pendulum.points[0].pos;
+            } else {
+                arms.points[1].pos = arms.points[0].pos + new float3(measured_arm_length,0,0);
             }
             arms.points[3].pinned = hands[1].gripping;
             if(hands[1].gripping){
                 arms.points[3].pos = pendulum.points[2].pos;
+            } else {
+                arms.points[3].pos = arms.points[2].pos + new float3(measured_arm_length,0,0);
             }
             arms.StartSim(step);
-            for(int j=0; j<1; ++j){
+            for(int j=0; j<4; ++j){
                 float total_mass = 0f;
                 var com = float3.zero;
                 for(int i=0; i<arms.points.Count; ++i){
@@ -612,7 +617,7 @@ public class GibbonControl : MonoBehaviour
                 }
                 com /= total_mass;
                 var offset = pendulum.points[1].pos - com;
-                if(arms.points[1].pinned && !arms.points[3].pinned){
+                /*if(arms.points[1].pinned && !arms.points[3].pinned){
                     arms.points[0].pos += offset * total_mass / arms.points[0].mass;
                 } else if(arms.points[3].pinned && !arms.points[1].pinned){
                     arms.points[2].pos += offset * total_mass / arms.points[2].mass;
@@ -620,12 +625,17 @@ public class GibbonControl : MonoBehaviour
                     var temp_offset = offset * total_mass / (arms.points[0].mass + arms.points[2].mass);
                     arms.points[0].pos += temp_offset;
                     arms.points[2].pos += temp_offset;
-                }
-                /*for(int i=0; i<arms.points.Count; ++i){
-                    if(arms.points[i].pinned == false){
+                }*/
+                for(int i=0; i<arms.points.Count; ++i){
+                    if(i!=1 && i!=3){
                         arms.points[i].pos += offset;
                     }
-                }*/
+                }
+                float step_sqrd = step*step;
+                float force = 10f;
+                arms.points[4].pos[1] -= step_sqrd * force;
+                arms.points[0].pos[1] += step_sqrd * force * 0.5f;
+                arms.points[2].pos[1] += step_sqrd * force * 0.5f;
                 arms.Constraints();
             }
             arms.EndSim();
