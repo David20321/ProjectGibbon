@@ -21,87 +21,7 @@ public class GibbonControl : MonoBehaviour
     HandState[] hands;
     int next_hand = 1;
     const float arm_length = 0.8f;
-    Character character = new Character();
-
-    class Character {        
-        public Transform root;
-        public Transform hip;
-        public Transform belly;
-        public Transform chest;
-        public Transform neck;
-        public Transform head;
-        public Transform leg_root;
-        public Transform left_thigh;
-        public Transform left_knee;
-        public Transform left_foot;
-        public Transform right_thigh;
-        public Transform right_knee;
-        public Transform right_foot;
-        public Transform arm_root;
-        public Transform left_clavicle;
-        public Transform left_shoulder;
-        public Transform left_elbow;
-        public Transform left_wrist;
-        public Transform right_clavicle;
-        public Transform right_shoulder;
-        public Transform right_elbow;
-        public Transform right_wrist;
-
-        public void GetTransforms(Transform p_root){
-            root = p_root;
-            hip = root.Find("DEF-spine");
-            belly = hip.Find("DEF-spine_001");
-            chest = belly.Find("DEF-spine_002/DEF-spine_003");
-            neck = chest.Find("DEF-spine_004/DEF-spine_005");
-            head = neck.Find("DEF-spine_006");
-            leg_root = root.Find("torso/MCH-spine_001/MCH-spine/tweak_spine/ORG-spine");
-            left_thigh = leg_root.Find("DEF-thigh_L");
-            left_knee = left_thigh.Find("DEF-thigh_L_001/DEF-shin_L");
-            left_foot = left_knee.Find("DEF-shin_L_001/DEF-foot_L");
-            right_thigh = leg_root.Find("DEF-thigh_R");
-            right_knee = right_thigh.Find("DEF-thigh_R_001/DEF-shin_R");
-            right_foot = right_knee.Find("DEF-shin_R_001/DEF-foot_R");
-            arm_root = root.Find("torso/MCH-spine_002/MCH-spine_003/tweak_spine_003/ORG-spine_003");
-            left_clavicle = arm_root.Find("ORG-shoulder_L");
-            left_shoulder = left_clavicle.Find("DEF-upper_arm_L");
-            left_elbow = left_shoulder.Find("DEF-upper_arm_L_001/DEF-forearm_L");
-            left_wrist = left_elbow.Find("DEF-forearm_L_001/DEF-hand_L");
-            right_clavicle = arm_root.Find("ORG-shoulder_R");
-            right_shoulder = right_clavicle.Find("DEF-upper_arm_R");
-            right_elbow = right_shoulder.Find("DEF-upper_arm_R_001/DEF-forearm_R");
-            right_wrist = right_elbow.Find("DEF-forearm_R_001/DEF-hand_R");
-        }
-
-        public void Draw() {
-            DebugDraw.Line(neck.position, head.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(neck.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(belly.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(belly.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-
-            DebugDraw.Line(left_thigh.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_thigh.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_foot.position, left_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_foot.position, left_foot.TransformPoint(Vector3.right * -0.7f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            
-            DebugDraw.Line(right_thigh.position, hip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_thigh.position, right_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_foot.position, right_knee.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_foot.position, right_foot.TransformPoint(Vector3.right * -0.7f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            
-            DebugDraw.Line(left_clavicle.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_clavicle.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_elbow.position, left_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_elbow.position, left_wrist.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(left_wrist.position, left_wrist.TransformPoint(Vector3.right*-1.0f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        
-            DebugDraw.Line(right_clavicle.position, chest.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_clavicle.position, right_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_elbow.position, right_shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_elbow.position, right_wrist.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-            DebugDraw.Line(right_wrist.position, right_wrist.TransformPoint(Vector3.right*-1.0f), Color.yellow, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
-        }
-    }
-
+    
     float measured_arm_length;
 
     class VerletPoint {
@@ -244,19 +164,22 @@ public class GibbonControl : MonoBehaviour
     }
 
     // Start is called before the first frame update
+    
+    Vector3 simple_pos;
+    Vector3 simple_vel = Vector3.zero;
     void Start() {
-        var pos = gibbon.transform.position;
-        pos[1] = 0f;
-        pos[2] = 0f;
+        simple_pos = gibbon.transform.position;
+        simple_pos[1] = 0f;
+        simple_pos[2] = 0f;
         hands = new HandState[2];
         for(int i=0; i<2; ++i){
             hands[i] = new HandState();
-            hands[i].pos = pos;
+            hands[i].pos = simple_pos;
             hands[i].gripping = true;
         }
         hands[1].gripping = false;
 
-        pendulum_center = pos;
+        pendulum_center = simple_pos;
         //pendulum_length = 
         
         //gibbon.GetComponent<Animator>().runtimeAnimatorController.animationClips[3].SampleAnimation(gibbon, 0.0f);
@@ -343,6 +266,9 @@ public class GibbonControl : MonoBehaviour
         pendulum.bones[1].length[1] = len;
     }
 
+    Vector3 next_handhold;
+    float swing_time = 0f;
+
     // Update is called once per frame
     void Update()
     {
@@ -357,6 +283,7 @@ public class GibbonControl : MonoBehaviour
         // Ricochetal contact time ~0.5s at 3 m/s, 0.25s at 6 m/s
         // Continuous contact optimized when spaced slightly closer than full arm spread of animal, so around 1.2 m
         // Usually has margin of error, swings with arm not fully extended at high speed
+        // Pendulum from 80 degrees w length 1 m has base speed of 4 m/s
                 
         /*
         var editor = GetComponent<AnimationEditor>();
@@ -434,6 +361,38 @@ public class GibbonControl : MonoBehaviour
         com /= total_mass;
         DebugDraw.Sphere(com, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
         
+        float horz_input = 0f;
+        float vert_input = 0f;
+        if(Input.GetKey(KeyCode.D)){
+            horz_input = 1f;
+        }
+        if(Input.GetKey(KeyCode.A)){
+            horz_input = -1f;
+        }
+        if(Input.GetKey(KeyCode.W)){
+            vert_input = 1f;
+        }
+        if(Input.GetKey(KeyCode.S)){
+            vert_input = -1f;
+        }
+        var old_pos = simple_pos;
+        simple_vel[0] += horz_input * Time.deltaTime;
+        simple_pos += simple_vel * Time.deltaTime;
+        float amplitude = math.abs(simple_vel[0])/12f;
+        float min_height = -1f + amplitude * 0.5f;
+        swing_time = Time.time*8f/(math.PI*2f);
+        simple_pos[1] = (min_height + (math.sin(swing_time * (math.PI*2f))+1f)*amplitude) * pendulum_length;
+        DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+        //DebugDraw.Line(old_pos, simple_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );    
+        float next_trough_time = ((math.ceil(swing_time)-0.25f) * (math.PI * 2.0f))/8f;
+        next_handhold = simple_pos + simple_vel * (next_trough_time-Time.time);
+        next_handhold[1] = 0.0f;
+        DebugDraw.Sphere(next_handhold, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+        if(math.distance(next_handhold, simple_pos) < pendulum_length){
+        DebugDraw.Line(simple_pos, next_handhold, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+        
+        }
+        
         if(ImGui.Begin("Gibbon")){
             //ImGui.Text($"pendulum_length: {math.distance(arms.points[1].pos, com)}");
             //DebugDraw.Line(arms.points[1].pos, com, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );    
@@ -445,6 +404,8 @@ public class GibbonControl : MonoBehaviour
             ImGui.Text($"potential energy: {potential_energy}");   
             ImGui.Text($"total energy: {kinetic_energy + potential_energy}");  
             ImGui.Text($"horz speed: {math.abs(vel[0])}");  
+            ImGui.Text($"horz speed: {math.abs(simple_vel[0])}");  
+            ImGui.Text($"swing time: {swing_time}");  
         }
         ImGui.End();
 
@@ -489,70 +450,75 @@ public class GibbonControl : MonoBehaviour
         // Otherwise if we're at the end of our swing and can reach the next handhold, then start a new swing (going backwards slightly for momentum)
         // Otherwise swing more to get momentum
         
-        if(horz_input != 0.0f && (hands[0].gripping || hands[1].gripping)) {
-            var temp_pos = pendulum.points[1].pos;
-            float3 vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
-            for (int i = 0; i < 30; ++i) {
-                temp_pos += vel * Time.fixedDeltaTime;
-                DebugDraw.Sphere(temp_pos, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        bool check_for_jump = false;
+        if(check_for_jump){
+            if(horz_input != 0.0f && (hands[0].gripping || hands[1].gripping)) {
+                var temp_pos = pendulum.points[1].pos;
+                float3 vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
+                for (int i = 0; i < 30; ++i) {
+                    temp_pos += vel * Time.fixedDeltaTime;
+                    DebugDraw.Sphere(temp_pos, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
 
-                var perp = new float3(vel[1], -vel[0], 0f);
-                if (perp[1] < 0) {
-                    perp = -perp;
-                }
-                bool any_good_trajectory = false;
-                if (perp[1] != 0) {
-                    perp = math.normalize(perp);
-                    float len = -temp_pos[1] / perp[1];
-                    var point = temp_pos + perp * len;
-                    var color = Color.red;
-                    float dist = math.distance(point, temp_pos);
-                    // Highlight grip if it will be within reach and will be going in the same direction
-                    if (dist < 1.0f && dist > 0.75f && perp[0] * vel[0] > 0.0f && math.abs(point[0] - hands[1-next_hand].pos[0]) > arm_length * 2f) {
-                        color = Color.green;
-                        any_good_trajectory = true;
+                    var perp = new float3(vel[1], -vel[0], 0f);
+                    if (perp[1] < 0) {
+                        perp = -perp;
                     }
-                    DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
-                    if(any_good_trajectory){
-                        // let go
-                        hands[0].gripping = false;
-                        hands[1].gripping = false;
-                        pendulum.bones[0].enabled = false;
-                        pendulum.bones[1].enabled = false;
-                        Debug.Log("LET GO");
-                        break;
+                    bool any_good_trajectory = false;
+                    if (perp[1] != 0) {
+                        perp = math.normalize(perp);
+                        float len = -temp_pos[1] / perp[1];
+                        var point = temp_pos + perp * len;
+                        var color = Color.red;
+                        float dist = math.distance(point, temp_pos);
+                        // Highlight grip if it will be within reach and will be going in the same direction
+                        if (dist < 1.0f && dist > 0.75f && perp[0] * vel[0] > 0.0f && math.abs(point[0] - hands[1-next_hand].pos[0]) > arm_length * 2f) {
+                            color = Color.green;
+                            any_good_trajectory = true;
+                        }
+                        DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+                        if(any_good_trajectory){
+                            // let go
+                            hands[0].gripping = false;
+                            hands[1].gripping = false;
+                            pendulum.bones[0].enabled = false;
+                            pendulum.bones[1].enabled = false;
+                            Debug.Log("LET GO");
+                            break;
+                        }
                     }
-                }
 
-                vel += (float3)Physics.gravity * 0.1f;
+                    vel += (float3)Physics.gravity * 0.1f;
+                }
             }
         }
 
-        for (int i=0; i<10; ++i){
-            if(!hands[0].gripping && !hands[1].gripping){
-                float3 vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
-                var temp_pos = pendulum.points[1].pos;
+        bool use_pendulum = false;
+        if(use_pendulum){
+            for (int i=0; i<10; ++i){
+                if(!hands[0].gripping && !hands[1].gripping){
+                    float3 vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
+                    var temp_pos = pendulum.points[1].pos;
 
-                var perp = new float3(vel[1], -vel[0], 0f);
-                if (perp[1] < 0) {
-                    perp = -perp;
-                }
-                if (perp[1] != 0) {
-                    perp = math.normalize(perp);
-                    float len = -temp_pos[1] / perp[1];
-                    var point = temp_pos + perp * len;
-                    var color = Color.red;
-                    float dist = math.distance(point, temp_pos);
-                    // Highlight grip if it will be within reach and will be going in the same direction
-                    if (dist < 1.0f && dist > 0.75f && perp[0] * vel[0] > 0.0f && math.abs(point[0] - hands[1-next_hand].pos[0]) > arm_length * 2f) {
-                        color = Color.green;
-                        GripPoint(point);
-                        Debug.Log("GRAB");
-                        break;
+                    var perp = new float3(vel[1], -vel[0], 0f);
+                    if (perp[1] < 0) {
+                        perp = -perp;
                     }
-                    DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+                    if (perp[1] != 0) {
+                        perp = math.normalize(perp);
+                        float len = -temp_pos[1] / perp[1];
+                        var point = temp_pos + perp * len;
+                        var color = Color.red;
+                        float dist = math.distance(point, temp_pos);
+                        // Highlight grip if it will be within reach and will be going in the same direction
+                        if (dist < 1.0f && dist > 0.75f && perp[0] * vel[0] > 0.0f && math.abs(point[0] - hands[1-next_hand].pos[0]) > arm_length * 2f) {
+                            color = Color.green;
+                            GripPoint(point);
+                            Debug.Log("GRAB");
+                            break;
+                        }
+                        DebugDraw.Line(temp_pos, point, color, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+                    }
                 }
-            }
 
             float temp_step = step * 0.1f;
             float time_sqrd = temp_step * temp_step;
@@ -590,10 +556,11 @@ public class GibbonControl : MonoBehaviour
                 DebugDraw.Line(pendulum.points[1].old_pos, pendulum.points[1].pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );
             }
         }
+        }
 
-        bool arms_map = false;
+        bool arms_map = true;
         if(arms_map){
-            arms.points[1].pinned = hands[0].gripping;
+            /*arms.points[1].pinned = hands[0].gripping;
             if(hands[0].gripping){
                 arms.points[1].pos = pendulum.points[0].pos;
             } else {
@@ -604,7 +571,8 @@ public class GibbonControl : MonoBehaviour
                 arms.points[3].pos = pendulum.points[2].pos;
             } else {
                 arms.points[3].pos = arms.points[2].pos + new float3(measured_arm_length,0,0);
-            }
+            }*/
+            arms.points[3].pos = next_handhold;
             arms.StartSim(step);
             for(int j=0; j<4; ++j){
                 float total_mass = 0f;
@@ -616,7 +584,7 @@ public class GibbonControl : MonoBehaviour
                     }
                 }
                 com /= total_mass;
-                var offset = pendulum.points[1].pos - com;
+                var offset = (float3)simple_pos - com;
                 /*if(arms.points[1].pinned && !arms.points[3].pinned){
                     arms.points[0].pos += offset * total_mass / arms.points[0].mass;
                 } else if(arms.points[3].pinned && !arms.points[1].pinned){
@@ -708,6 +676,9 @@ public class GibbonControl : MonoBehaviour
             arms.Constraints();
             arms.EndSim();
         }
+        var cam_pos = Camera.main.transform.position;
+        cam_pos[0] = simple_pos[0];
+        Camera.main.transform.position = cam_pos;
     }
 
     private void FixedUpdate() {
