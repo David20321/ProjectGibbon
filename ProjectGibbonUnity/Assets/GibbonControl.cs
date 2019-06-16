@@ -370,7 +370,7 @@ public class GibbonControl : MonoBehaviour
         // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
         var old_elbow_axis = math.normalize(math.cross((arms.points[3].bind_pos+arms.points[2].bind_pos)*0.5f - (arms.points[2].bind_pos + arms.points[0].bind_pos) * 0.5f, arms.points[2].bind_pos - arms.points[3].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
         var elbow_axis = math.normalize(math.cross((arms.points[3].pos+arms.points[2].pos)*0.5f - (arms.points[2].pos + arms.points[0].pos) * 0.5f, arms.points[2].pos - arms.points[3].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
-        shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_elbow_axis)) * shoulder_rotation;
+        shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_elbow_axis));
         arm_top_l.transform.position = arm_top_l.bind_pos + shoulder_offset;
         arm_top_l.transform.rotation = shoulder_rotation * arm_top_l.bind_rot;
         
