@@ -11,6 +11,8 @@ public class GibbonControl : MonoBehaviour
 {
     public GameObject gibbon;
     public GameObject display_gibbon;
+    public GameObject point_prefab;
+    static public GameObject point_prefab_static;
     
     class HandState {
         public Vector3 pos;
@@ -32,6 +34,7 @@ public class GibbonControl : MonoBehaviour
         public float mass;
         public bool pinned;
         public string name;
+        public Transform widget;
     }
 
     class VerletBone {
@@ -49,7 +52,8 @@ public class GibbonControl : MonoBehaviour
     }
 
     BindPart chest = new BindPart();
-    BindPart arm_l = new BindPart();
+    BindPart arm_top_l = new BindPart();
+    BindPart arm_bottom_l = new BindPart();
     BindPart arm_r = new BindPart();
 
     class VerletSystem {
@@ -64,6 +68,7 @@ public class GibbonControl : MonoBehaviour
             point.pinned = false;
             point.name = name;
             point.mass = 1.0f;
+            point.widget = Instantiate(point_prefab_static, point.pos, Quaternion.identity).transform;
             points.Add(point);
         }
     
@@ -165,9 +170,20 @@ public class GibbonControl : MonoBehaviour
 
     // Start is called before the first frame update
     
+    class TwoBoneIK {
+        public float3[] points;
+        public TwoBoneIK() {
+            points = new float3[3];
+        }
+    }
+
+    TwoBoneIK left_arm = new TwoBoneIK();
+
     Vector3 simple_pos;
     Vector3 simple_vel = Vector3.zero;
     void Start() {
+        point_prefab_static = point_prefab;
+
         simple_pos = gibbon.transform.position;
         simple_pos[1] = 0f;
         simple_pos[2] = 0f;
@@ -194,14 +210,18 @@ public class GibbonControl : MonoBehaviour
         var grip = root.Find("grip");
         var hip = root.Find("hip");
         var knee = root.Find("knee");
-        var foot = root.Find("foot");
-        
+        var foot = root.Find("foot");        
+
         //DebugDraw.Line(neck.position, shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
         //DebugDraw.Line(shoulder.position, elbow.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
         //DebugDraw.Line(elbow.position, grip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
 
-        measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(shoulder.position, elbow.position);
+        measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(elbow.position, grip.position);
                   
+        left_arm.points[0] = shoulder.position;
+        left_arm.points[1] = elbow.position;
+        left_arm.points[2] = grip.position;
+
         arms.AddPoint((float3)shoulder.position, "shoulder_r");
         arms.AddPoint((float3)grip.position, "hand_r");
         arms.AddPoint((float3)(shoulder.position+Vector3.right * (neck.position[0] - shoulder.position[0])*2f), "shoulder_l");
@@ -212,8 +232,10 @@ public class GibbonControl : MonoBehaviour
         arms.points[4].mass = 4f;
         
         arms.AddBone("arm_r", 0, 1);
+        arms.bones[arms.bones.Count-1].length[1] = measured_arm_length;
         arms.bones[arms.bones.Count-1].length[0] *= 0.25f; // Allow arm to flex
         arms.AddBone("arm_l", 2, 3);
+        arms.bones[arms.bones.Count-1].length[1] = measured_arm_length;
         arms.bones[arms.bones.Count-1].length[0] *= 0.25f;
         arms.AddBone("tri_top", 0, 2);
         arms.AddBone("tri_r", 0, 4);
@@ -228,7 +250,8 @@ public class GibbonControl : MonoBehaviour
         pendulum.AddBone("pendulum_next", 2, 1);
 
         SetBindPart(chest, display_gibbon.transform.Find("DEF-spine_003"));
-        SetBindPart(arm_l, display_gibbon.transform.Find("DEF-upper_arm_L"));
+        SetBindPart(arm_top_l, display_gibbon.transform.Find("DEF-upper_arm_L"));
+        SetBindPart(arm_bottom_l, display_gibbon.transform.Find("DEF-forearm_L"));
         SetBindPart(arm_r, display_gibbon.transform.Find("DEF-upper_arm_R"));
     }
     
@@ -268,6 +291,20 @@ public class GibbonControl : MonoBehaviour
     
     float swing_time = 0f;
 
+    float GetAngleGivenSides(float a, float b, float c){
+        // law of cosines:
+        // c*c = a*a + b*b - 2*a*b*cos(C)
+        // c*c - a*a - b*b = -2*a*b*cos(C)
+        // (c*c - a*a - b*b) / (-2*a*b) = cos(C)
+        // C = acos((c*c - a*a - b*b) / (-2*a*b))
+        var top = (c*c - a*a - b*b);
+        var divisor = (-2*a*b);
+        if(divisor==0f){
+            return 0f;
+        }
+        return math.acos(math.clamp(top / divisor, -1f, 1f));
+    }
+
     // Update is called once per frame
     void Update()
     {
@@ -292,20 +329,54 @@ public class GibbonControl : MonoBehaviour
             }
         }*/
         
+        const bool manually_drag_points = false;
+        if(manually_drag_points){
+            for(int i=0; i<arms.points.Count; ++i){
+                arms.points[i].pos = arms.points[i].widget.position;
+            }
+            arms.Constraints();
+            for(int i=0; i<arms.points.Count; ++i){
+                arms.points[i].widget.position = arms.points[i].pos;
+            }
+        }
+
         var bind_mid = (arms.points[0].bind_pos + arms.points[2].bind_pos + arms.points[4].bind_pos)/3.0f;
         var mid = (arms.points[0].pos + arms.points[2].pos + arms.points[4].pos)/3.0f;
-        var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+        var forward = -math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+        var bind_forward = -math.normalize(math.cross(arms.points[0].bind_pos - arms.points[2].bind_pos, arms.points[0].bind_pos - arms.points[4].bind_pos));
         var up = math.normalize((arms.points[0].pos + arms.points[2].pos)/2.0f - arms.points[4].pos);
+        var bind_up = math.normalize((arms.points[0].bind_pos + arms.points[2].bind_pos)/2.0f - arms.points[4].bind_pos);
         
         //DebugDraw.Line(mid, mid+forward, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
         //DebugDraw.Line(mid, mid+up, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
 
-        chest.transform.rotation = Quaternion.LookRotation(forward, up) * chest.bind_rot;
-        chest.transform.position = mid + (float3)(chest.transform.rotation * (chest.bind_pos - bind_mid));
+        chest.transform.rotation = Quaternion.LookRotation(forward, up) * Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * chest.bind_rot;
+        chest.transform.position = mid + (float3)(Quaternion.LookRotation(forward, up) * Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * (chest.bind_pos - bind_mid));
 
-        arm_l.transform.position = arm_l.bind_pos + (arms.points[2].pos - arms.points[2].bind_pos);
-        arm_l.transform.rotation = Quaternion.LookRotation(arms.points[3].pos - arms.points[2].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(arms.points[3].bind_pos - arms.points[2].bind_pos, Vector3.forward)) * arm_l.bind_rot;
-       
+        var shoulder_offset = (arms.points[2].pos - arms.points[2].bind_pos);
+        var shoulder_rotation = Quaternion.LookRotation(arms.points[3].pos - arms.points[2].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(arms.points[3].bind_pos - arms.points[2].bind_pos, Vector3.forward));
+        
+        float dist_a = math.distance(left_arm.points[0], left_arm.points[1]);
+        float dist_b = math.distance(left_arm.points[1], left_arm.points[2]);
+        float dist_c = math.distance(arms.points[2].pos, arms.points[3].pos);
+        var elbow_angle = GetAngleGivenSides(dist_a, dist_b, dist_c);
+        var shoulder_angle = GetAngleGivenSides(dist_c, dist_a, dist_b);
+        DebugText.AddVar("elbow_angle", elbow_angle, 0.5f);
+        DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
+
+        var elbow_axis = shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+        shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation;
+        arm_top_l.transform.position = arm_top_l.bind_pos + shoulder_offset;
+        arm_top_l.transform.rotation = shoulder_rotation * arm_top_l.bind_rot;
+        
+        var elbow = arm_top_l.transform.position + arm_top_l.transform.rotation * Quaternion.Inverse(arm_top_l.bind_rot) * (arm_bottom_l.bind_pos - arm_top_l.bind_pos);
+        arm_bottom_l.transform.position = elbow;
+        arm_bottom_l.transform.rotation = Quaternion.AngleAxis((math.PI + elbow_angle) * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * arm_bottom_l.bind_rot;
+
+        //DebugDraw.Line(left_arm.points[0], left_arm.points[1], Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+        //DebugDraw.Line(left_arm.points[1], left_arm.points[2], Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+
+
         arm_r.transform.position = arm_r.bind_pos + (arms.points[0].pos - arms.points[0].bind_pos);
         arm_r.transform.rotation = Quaternion.LookRotation(arms.points[1].pos - arms.points[0].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(arms.points[1].bind_pos - arms.points[0].bind_pos, Vector3.forward)) * arm_r.bind_rot;
 
@@ -426,7 +497,7 @@ public class GibbonControl : MonoBehaviour
         simple_vel[0] += horz_input * Time.deltaTime * 5f;
         simple_vel[0] = math.clamp(simple_vel[0], -15f, 15f);
         simple_pos += simple_vel * Time.deltaTime;
-        float amplitude = math.pow(math.abs(simple_vel[0])/12f + 1f, 0.8f)-1f;
+        float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f;
         float min_height = -1f + amplitude * 0.5f;
         var old_swing_time = swing_time;
         swing_time = Time.time*8f/(math.PI*2f);
@@ -608,8 +679,8 @@ public class GibbonControl : MonoBehaviour
                 arms.points[4].pos[1] -= step_sqrd * force;
                 arms.points[0].pos[1] += step_sqrd * force * 0.5f;
                 arms.points[2].pos[1] += step_sqrd * force * 0.5f;
-                arms.points[0].pos[2] += step_sqrd * simple_vel[0];
-                arms.points[2].pos[2] -= step_sqrd * simple_vel[0];
+                arms.points[0].pos[2] -= step_sqrd * simple_vel[0];
+                arms.points[2].pos[2] += step_sqrd * simple_vel[0];
                 arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 2f; // Apply backwards force to maintain forwards tilt
                 arms.Constraints();
             }
