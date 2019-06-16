@@ -218,9 +218,9 @@ public class GibbonControl : MonoBehaviour
 
         measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(elbow.position, grip.position);
                   
-        left_arm.points[0] = shoulder.position;
-        left_arm.points[1] = elbow.position;
-        left_arm.points[2] = grip.position;
+        left_arm.points[0] = shoulder.position + Vector3.right * (neck.position[0] - shoulder.position[0])*2f;
+        left_arm.points[1] = elbow.position + Vector3.right * (neck.position[0] - elbow.position[0])*2f;
+        left_arm.points[2] = grip.position + Vector3.right * (neck.position[0] - grip.position[0])*2f;
 
         arms.AddPoint((float3)shoulder.position, "shoulder_r");
         arms.AddPoint((float3)grip.position, "hand_r");
@@ -359,20 +359,24 @@ public class GibbonControl : MonoBehaviour
         float dist_a = math.distance(left_arm.points[0], left_arm.points[1]);
         float dist_b = math.distance(left_arm.points[1], left_arm.points[2]);
         float dist_c = math.distance(arms.points[2].pos, arms.points[3].pos);
+        float old_dist_c = math.distance(left_arm.points[0], left_arm.points[2]);
+        var old_elbow_angle = GetAngleGivenSides(dist_a, dist_b, old_dist_c);
+        var old_shoulder_angle = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
         var elbow_angle = GetAngleGivenSides(dist_a, dist_b, dist_c);
         var shoulder_angle = GetAngleGivenSides(dist_c, dist_a, dist_b);
         DebugText.AddVar("elbow_angle", elbow_angle, 0.5f);
         DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
 
         // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
+        var old_elbow_axis = math.normalize(math.cross((arms.points[3].bind_pos+arms.points[2].bind_pos)*0.5f - (arms.points[2].bind_pos + arms.points[0].bind_pos) * 0.5f, arms.points[2].bind_pos - arms.points[3].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
         var elbow_axis = math.normalize(math.cross((arms.points[3].pos+arms.points[2].pos)*0.5f - (arms.points[2].pos + arms.points[0].pos) * 0.5f, arms.points[2].pos - arms.points[3].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
-        shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation;
+        shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_elbow_axis)) * shoulder_rotation;
         arm_top_l.transform.position = arm_top_l.bind_pos + shoulder_offset;
         arm_top_l.transform.rotation = shoulder_rotation * arm_top_l.bind_rot;
         
         var elbow = arm_top_l.transform.position + arm_top_l.transform.rotation * Quaternion.Inverse(arm_top_l.bind_rot) * (arm_bottom_l.bind_pos - arm_top_l.bind_pos);
         arm_bottom_l.transform.position = elbow;
-        arm_bottom_l.transform.rotation = Quaternion.AngleAxis((math.PI + elbow_angle) * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * arm_bottom_l.bind_rot;
+        arm_bottom_l.transform.rotation = Quaternion.AngleAxis(elbow_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * Quaternion.Inverse(Quaternion.AngleAxis(old_elbow_angle * Mathf.Rad2Deg, old_elbow_axis)) * arm_bottom_l.bind_rot;
 
         //DebugDraw.Line(left_arm.points[0], left_arm.points[1], Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
         //DebugDraw.Line(left_arm.points[1], left_arm.points[2], Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
