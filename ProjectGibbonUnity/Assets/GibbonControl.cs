@@ -242,6 +242,23 @@ public class GibbonControl : MonoBehaviour
         arms.AddBone("tri_top", 0, 2);
         arms.AddBone("tri_r", 0, 4);
         arms.AddBone("tri_l", 2, 4);
+        
+        complete.AddPoint((float3)shoulder.position, "shoulder_r");
+        complete.AddPoint((float3)grip.position, "hand_r");
+        complete.AddPoint((float3)(shoulder.position+Vector3.right * (neck.position[0] - shoulder.position[0])*2f), "shoulder_l");
+        complete.AddPoint((float3)(grip.position+Vector3.right * (neck.position[0] - grip.position[0])*2f), "hand_l");
+        complete.AddPoint(new float3(neck.position[0], hip.position[1], neck.position[2]), "body");
+        
+        complete.AddBone("arm_r", 0, 1);
+        complete.bones[complete.bones.Count-1].length[1] = measured_arm_length;
+        complete.bones[complete.bones.Count-1].length[0] *= 0.25f; // Allow arm to flex
+        complete.AddBone("arm_l", 2, 3);
+        complete.bones[complete.bones.Count-1].length[1] = measured_arm_length;
+        complete.bones[complete.bones.Count-1].length[0] *= 0.25f;
+        complete.AddBone("tri_top", 0, 2);
+        complete.AddBone("tri_r", 0, 4);
+        complete.AddBone("tri_l", 2, 4);
+
 
         pendulum.AddPoint(new float3(pendulum_center), "pendulum_axis");
         pendulum.AddPoint(new float3(pendulum_center + new float3(0, -pendulum_length, 0)), "pendulum_end");
@@ -334,21 +351,21 @@ public class GibbonControl : MonoBehaviour
         
         const bool manually_drag_points = true;
         if(manually_drag_points){
-            for(int i=0; i<arms.points.Count; ++i){
-                arms.points[i].pos = arms.points[i].widget.position;
+            for(int i=0; i<complete.points.Count; ++i){
+                complete.points[i].pos = complete.points[i].widget.position;
             }
-            arms.Constraints();
-            for(int i=0; i<arms.points.Count; ++i){
-                arms.points[i].widget.position = arms.points[i].pos;
+            complete.Constraints();
+            for(int i=0; i<complete.points.Count; ++i){
+                complete.points[i].widget.position = complete.points[i].pos;
             }
         }
 
-        var bind_mid = (arms.points[0].bind_pos + arms.points[2].bind_pos + arms.points[4].bind_pos)/3.0f;
-        var mid = (arms.points[0].pos + arms.points[2].pos + arms.points[4].pos)/3.0f;
-        var forward = -math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
-        var bind_forward = -math.normalize(math.cross(arms.points[0].bind_pos - arms.points[2].bind_pos, arms.points[0].bind_pos - arms.points[4].bind_pos));
-        var up = math.normalize((arms.points[0].pos + arms.points[2].pos)/2.0f - arms.points[4].pos);
-        var bind_up = math.normalize((arms.points[0].bind_pos + arms.points[2].bind_pos)/2.0f - arms.points[4].bind_pos);
+        var bind_mid = (complete.points[0].bind_pos + complete.points[2].bind_pos + complete.points[4].bind_pos)/3.0f;
+        var mid = (complete.points[0].pos + complete.points[2].pos + complete.points[4].pos)/3.0f;
+        var forward = -math.normalize(math.cross(complete.points[0].pos - complete.points[2].pos, complete.points[0].pos - complete.points[4].pos));
+        var bind_forward = -math.normalize(math.cross(complete.points[0].bind_pos - complete.points[2].bind_pos, complete.points[0].bind_pos - complete.points[4].bind_pos));
+        var up = math.normalize((complete.points[0].pos + complete.points[2].pos)/2.0f - complete.points[4].pos);
+        var bind_up = math.normalize((complete.points[0].bind_pos + complete.points[2].bind_pos)/2.0f - complete.points[4].bind_pos);
         
         //DebugDraw.Line(mid, mid+forward, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
         //DebugDraw.Line(mid, mid+up, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
@@ -357,12 +374,12 @@ public class GibbonControl : MonoBehaviour
         chest.transform.position = mid + (float3)(Quaternion.LookRotation(forward, up) * Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * (chest.bind_pos - bind_mid));
 
         for(int i=0; i<2; ++i){
-            var shoulder_offset = (arms.points[i*2].pos - arms.points[i*2].bind_pos);
-            var shoulder_rotation = Quaternion.LookRotation(arms.points[i*2+1].pos - arms.points[i*2].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(arms.points[i*2+1].bind_pos - arms.points[i*2].bind_pos, Vector3.forward));
+            var shoulder_offset = (complete.points[i*2].pos - complete.points[i*2].bind_pos);
+            var shoulder_rotation = Quaternion.LookRotation(complete.points[i*2+1].pos - complete.points[i*2].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(complete.points[i*2+1].bind_pos - complete.points[i*2].bind_pos, Vector3.forward));
         
             float dist_a = math.distance(arm_ik.points[0], arm_ik.points[1]);
             float dist_b = math.distance(arm_ik.points[1], arm_ik.points[2]);
-            float dist_c = math.distance(arms.points[i*2].pos, arms.points[i*2+1].pos);
+            float dist_c = math.distance(complete.points[i*2].pos, complete.points[i*2+1].pos);
             float old_dist_c = math.distance(arm_ik.points[0], arm_ik.points[2]);
             var old_elbow_angle = GetAngleGivenSides(dist_a, dist_b, old_dist_c);
             var old_shoulder_angle = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
@@ -372,8 +389,8 @@ public class GibbonControl : MonoBehaviour
             DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
 
             // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
-            var old_elbow_axis = math.normalize(math.cross((arms.points[i*2+1].bind_pos+arms.points[i*2].bind_pos)*0.5f - (arms.points[2].bind_pos + arms.points[0].bind_pos) * 0.5f, arms.points[i*2].bind_pos - arms.points[i*2+1].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
-            var elbow_axis = math.normalize(math.cross((arms.points[i*2+1].pos+arms.points[i*2].pos)*0.5f - (arms.points[2].pos + arms.points[0].pos) * 0.5f, arms.points[i*2].pos - arms.points[i*2+1].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+            var old_elbow_axis = math.normalize(math.cross((complete.points[i*2+1].bind_pos+complete.points[i*2].bind_pos)*0.5f - (complete.points[2].bind_pos + complete.points[0].bind_pos) * 0.5f, complete.points[i*2].bind_pos - complete.points[i*2+1].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+            var elbow_axis = math.normalize(math.cross((complete.points[i*2+1].pos+complete.points[i*2].pos)*0.5f - (complete.points[2].pos + complete.points[0].pos) * 0.5f, complete.points[i*2].pos - complete.points[i*2+1].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
             shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_elbow_axis));
             
             var top = arm_top_r;
@@ -396,6 +413,7 @@ public class GibbonControl : MonoBehaviour
         
         arms.DrawBones(Color.white);
         pendulum.DrawBones(Color.blue);
+        complete.DrawBones(Color.green);
         
         if(!hands[0].gripping && !hands[1].gripping){
             var vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
@@ -509,7 +527,7 @@ public class GibbonControl : MonoBehaviour
         simple_vel[0] = math.clamp(simple_vel[0], -15f, 15f);
         simple_pos += simple_vel * Time.deltaTime;
         float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f;
-        float min_height = -1f + amplitude * 0.5f;
+        float min_height = -1f + amplitude * 0.25f;
         var old_swing_time = swing_time;
         swing_time = Time.time*8f/(math.PI*2f);
         if(math.ceil(old_swing_time) != math.ceil(swing_time)){
@@ -638,7 +656,7 @@ public class GibbonControl : MonoBehaviour
         }
         }
 
-        bool arms_map = false;
+        bool arms_map = true;
         if(arms_map){
             /*arms.points[1].pinned = hands[0].gripping;
             if(hands[0].gripping){
