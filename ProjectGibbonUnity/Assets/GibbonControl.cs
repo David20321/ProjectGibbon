@@ -191,6 +191,7 @@ public class GibbonControl : MonoBehaviour
     }
 
     TwoBoneIK arm_ik = new TwoBoneIK();
+    TwoBoneIK leg_ik = new TwoBoneIK();
 
     Vector3 simple_pos;
     Vector3 simple_vel = Vector3.zero;
@@ -231,12 +232,31 @@ public class GibbonControl : MonoBehaviour
         //DebugDraw.Line(neck.position, shoulder.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
         //DebugDraw.Line(shoulder.position, elbow.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
         //DebugDraw.Line(elbow.position, grip.position, Color.white, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
+        
+        SetBindPart(bind_parts.head, display_gibbon.transform.Find("DEF-head"));
+        SetBindPart(bind_parts.chest, display_gibbon.transform.Find("DEF-chest"));
+        SetBindPart(bind_parts.belly, display_gibbon.transform.Find("DEF-belly"));
+        SetBindPart(bind_parts.pelvis, display_gibbon.transform.Find("DEF-pelvis"));
+        SetBindPart(bind_parts.arm_top_l, display_gibbon.transform.Find("DEF-upper_arm_L"));
+        SetBindPart(bind_parts.arm_bottom_l, display_gibbon.transform.Find("DEF-forearm_L"));
+        SetBindPart(bind_parts.arm_top_r, display_gibbon.transform.Find("DEF-upper_arm_R"));
+        SetBindPart(bind_parts.arm_bottom_r, display_gibbon.transform.Find("DEF-forearm_R"));
+        SetBindPart(bind_parts.leg_top_l, display_gibbon.transform.Find("DEF-thigh_L"));
+        SetBindPart(bind_parts.leg_bottom_l, display_gibbon.transform.Find("DEF-shin_L"));
+        SetBindPart(bind_parts.leg_top_r, display_gibbon.transform.Find("DEF-thigh_R"));
+        SetBindPart(bind_parts.leg_bottom_r, display_gibbon.transform.Find("DEF-shin_R"));
+
+        elbow.position = bind_parts.arm_bottom_r.transform.position;
 
         measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(elbow.position, grip.position);
                   
-        arm_ik.points[0] = shoulder.position + Vector3.right * (neck.position[0] - shoulder.position[0])*2f;
-        arm_ik.points[1] = elbow.position + Vector3.right * (neck.position[0] - elbow.position[0])*2f;
-        arm_ik.points[2] = grip.position + Vector3.right * (neck.position[0] - grip.position[0])*2f;
+        arm_ik.points[0] = shoulder.position;
+        arm_ik.points[1] = elbow.position;
+        arm_ik.points[2] = grip.position;
+        
+        leg_ik.points[0] = hip.position;
+        leg_ik.points[1] = bind_parts.leg_bottom_r.transform.position;
+        leg_ik.points[2] = foot.position;
 
         arms.AddPoint(shoulder.position, "shoulder_r");
         arms.AddPoint(grip.position, "hand_r");
@@ -283,7 +303,9 @@ public class GibbonControl : MonoBehaviour
         complete.AddBone("belly", 7, 8);
         complete.AddBone("pelvis", 8, 9);
         complete.AddBone("leg_r", 10, 11);
+        complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         complete.AddBone("leg_l", 12, 13);
+        complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
 
 
         pendulum.AddPoint(new float3(pendulum_center), "pendulum_axis");
@@ -294,18 +316,6 @@ public class GibbonControl : MonoBehaviour
         pendulum.AddBone("pendulum", 0, 1);
         pendulum.AddBone("pendulum_next", 2, 1);
         
-        SetBindPart(bind_parts.head, display_gibbon.transform.Find("DEF-head"));
-        SetBindPart(bind_parts.chest, display_gibbon.transform.Find("DEF-chest"));
-        SetBindPart(bind_parts.belly, display_gibbon.transform.Find("DEF-belly"));
-        SetBindPart(bind_parts.pelvis, display_gibbon.transform.Find("DEF-pelvis"));
-        SetBindPart(bind_parts.arm_top_l, display_gibbon.transform.Find("DEF-upper_arm_L"));
-        SetBindPart(bind_parts.arm_bottom_l, display_gibbon.transform.Find("DEF-forearm_L"));
-        SetBindPart(bind_parts.arm_top_r, display_gibbon.transform.Find("DEF-upper_arm_R"));
-        SetBindPart(bind_parts.arm_bottom_r, display_gibbon.transform.Find("DEF-forearm_R"));
-        SetBindPart(bind_parts.leg_top_l, display_gibbon.transform.Find("DEF-thigh_L"));
-        //SetBindPart(bind_parts.leg_bottom_l, display_gibbon.transform.Find("DEF-shin_L"));
-        SetBindPart(bind_parts.leg_top_r, display_gibbon.transform.Find("DEF-thigh_R"));
-        //SetBindPart(bind_parts.leg_bottom_r, display_gibbon.transform.Find("DEF-shin_R"));
     }
     
 
@@ -344,7 +354,7 @@ public class GibbonControl : MonoBehaviour
     
     float swing_time = 0f;
 
-    float GetAngleGivenSides(float a, float b, float c){
+    static float GetAngleGivenSides(float a, float b, float c){
         // law of cosines:
         // c*c = a*a + b*b - 2*a*b*cos(C)
         // c*c - a*a - b*b = -2*a*b*cos(C)
@@ -368,6 +378,35 @@ public class GibbonControl : MonoBehaviour
                        Quaternion.Inverse(Quaternion.LookRotation(bind_up, bind_forward));
         part.transform.rotation = rotation * part.bind_rot;
         part.transform.position = mid + (float3)(rotation * (part.bind_pos - bind_mid));
+    }
+
+    static void ApplyTwoBoneIK(int start, int end, float3 forward, TwoBoneIK ik, BindPart top, BindPart bottom, List<VerletPoint> points, float3 old_axis, float3 axis){
+            var shoulder_offset = (points[start].pos - points[start].bind_pos);
+            var shoulder_rotation = Quaternion.LookRotation(points[end].pos - points[start].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(points[end].bind_pos - points[start].bind_pos, Vector3.forward));
+        
+            float dist_a = math.distance(ik.points[0], ik.points[1]);
+            float dist_b = math.distance(ik.points[1], ik.points[2]);
+            float dist_c = math.distance(points[start].pos, points[end].pos);
+            float old_dist_c = math.distance(ik.points[0], ik.points[2]);
+            var old_elbow_angle = GetAngleGivenSides(dist_a, dist_b, old_dist_c);
+            var old_shoulder_angle = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
+            var elbow_angle = GetAngleGivenSides(dist_a, dist_b, dist_c);
+            var shoulder_angle = GetAngleGivenSides(dist_c, dist_a, dist_b);
+            DebugText.AddVar("elbow_angle", elbow_angle, 0.5f);
+            DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
+
+            // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
+            shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, axis) * shoulder_rotation * 
+                                Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_axis));
+            
+            top.transform.position = top.bind_pos + shoulder_offset;
+            top.transform.rotation = shoulder_rotation * top.bind_rot;
+        
+            var elbow = top.transform.position + top.transform.rotation * Quaternion.Inverse(top.bind_rot) * (bottom.bind_pos - top.bind_pos);
+            bottom.transform.position = elbow;
+            bottom.transform.rotation = Quaternion.AngleAxis(elbow_angle * Mathf.Rad2Deg, axis) * shoulder_rotation * 
+                                        Quaternion.Inverse(Quaternion.AngleAxis(old_elbow_angle * Mathf.Rad2Deg, old_axis)) * bottom.bind_rot;
+        
     }
 
     // Update is called once per frame
@@ -431,25 +470,6 @@ public class GibbonControl : MonoBehaviour
         ApplyBound(bind_parts.leg_top_l, forward, bind_forward, 12, 13);
 
         for(int i=0; i<2; ++i){
-            var shoulder_offset = (complete.points[i*2].pos - complete.points[i*2].bind_pos);
-            var shoulder_rotation = Quaternion.LookRotation(complete.points[i*2+1].pos - complete.points[i*2].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(complete.points[i*2+1].bind_pos - complete.points[i*2].bind_pos, Vector3.forward));
-        
-            float dist_a = math.distance(arm_ik.points[0], arm_ik.points[1]);
-            float dist_b = math.distance(arm_ik.points[1], arm_ik.points[2]);
-            float dist_c = math.distance(complete.points[i*2].pos, complete.points[i*2+1].pos);
-            float old_dist_c = math.distance(arm_ik.points[0], arm_ik.points[2]);
-            var old_elbow_angle = GetAngleGivenSides(dist_a, dist_b, old_dist_c);
-            var old_shoulder_angle = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
-            var elbow_angle = GetAngleGivenSides(dist_a, dist_b, dist_c);
-            var shoulder_angle = GetAngleGivenSides(dist_c, dist_a, dist_b);
-            DebugText.AddVar("elbow_angle", elbow_angle, 0.5f);
-            DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
-
-            // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
-            var old_elbow_axis = math.normalize(math.cross((complete.points[i*2+1].bind_pos+complete.points[i*2].bind_pos)*0.5f - (complete.points[2].bind_pos + complete.points[0].bind_pos) * 0.5f, complete.points[i*2].bind_pos - complete.points[i*2+1].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
-            var elbow_axis = math.normalize(math.cross((complete.points[i*2+1].pos+complete.points[i*2].pos)*0.5f - (complete.points[2].pos + complete.points[0].pos) * 0.5f, complete.points[i*2].pos - complete.points[i*2+1].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
-            shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_elbow_axis));
-            
             var top = bind_parts.arm_top_r;
             var bottom = bind_parts.arm_bottom_r;
             if(i==1){
@@ -457,12 +477,34 @@ public class GibbonControl : MonoBehaviour
                 bottom = bind_parts.arm_bottom_l;
             }
 
-            top.transform.position = top.bind_pos + shoulder_offset;
-            top.transform.rotation = shoulder_rotation * top.bind_rot;
+            var points = complete.points;
+            int start = i*2;
+            int end = i*2+1;
+            var old_axis = math.normalize(math.cross((points[end].bind_pos+points[start].bind_pos)*0.5f - (points[2].bind_pos + points[0].bind_pos) * 0.5f, points[start].bind_pos - points[end].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+            var axis = math.normalize(math.cross((points[end].pos+points[start].pos)*0.5f - (points[2].pos + points[0].pos) * 0.5f, points[start].pos - points[end].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+            
+            ApplyTwoBoneIK(start, end, forward, arm_ik, top, bottom, complete.points, old_axis, axis);
+        }
+
+        for(int i=0; i<2; ++i){
+            var top = bind_parts.leg_top_r;
+            var bottom = bind_parts.leg_bottom_r;
+            if(i==1){
+                top = bind_parts.leg_top_l;
+                bottom = bind_parts.leg_bottom_l;
+            }
+            
+            var points = complete.points;
+            int start = i*2+10;
+            int end = i*2+1+10;
+
+            var bind_shoulder_rotation = Quaternion.LookRotation(points[end].bind_pos - points[start].bind_pos, Vector3.forward);
+            var shoulder_rotation = Quaternion.LookRotation(points[end].pos - points[start].pos, forward) * bind_shoulder_rotation;
         
-            var elbow = top.transform.position + top.transform.rotation * Quaternion.Inverse(top.bind_rot) * (bottom.bind_pos - top.bind_pos);
-            bottom.transform.position = elbow;
-            bottom.transform.rotation = Quaternion.AngleAxis(elbow_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation * Quaternion.Inverse(Quaternion.AngleAxis(old_elbow_angle * Mathf.Rad2Deg, old_elbow_axis)) * bottom.bind_rot;
+            var old_axis = bind_shoulder_rotation * Vector3.right;
+            var axis = shoulder_rotation * Vector3.right;
+
+            ApplyTwoBoneIK(start, end, forward, leg_ik, top, bottom, complete.points, old_axis, axis);
         }
 
         //gibbon.transform.position = mid;
