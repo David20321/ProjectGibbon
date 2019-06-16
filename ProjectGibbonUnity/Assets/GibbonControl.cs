@@ -433,78 +433,111 @@ public class GibbonControl : MonoBehaviour
             }
         }*/
         
-        const bool manually_drag_points = true;
+        const bool manually_drag_points = false;
         if(manually_drag_points){
-            for(int i=0; i<complete.points.Count; ++i){
-                complete.points[i].pos = complete.points[i].widget.position;
+            for(int i=0; i<arms.points.Count; ++i){
+                arms.points[i].pos = arms.points[i].widget.position;
             }
+            arms.Constraints();
+            for(int i=0; i<arms.points.Count; ++i){
+                arms.points[i].widget.position = arms.points[i].pos;
+            }
+        }
+
+        const bool map_complete_to_arms = true;
+        if(map_complete_to_arms){
+            var bind_mid = (arms.points[0].bind_pos + arms.points[2].bind_pos + arms.points[4].bind_pos)/3.0f;
+            var mid = (arms.points[0].pos + arms.points[2].pos + arms.points[4].pos)/3.0f;
+            var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+            var bind_forward = math.normalize(math.cross(arms.points[0].bind_pos - arms.points[2].bind_pos, arms.points[0].bind_pos - arms.points[4].bind_pos));
+            var up = math.normalize((arms.points[0].pos + arms.points[2].pos)/2.0f - arms.points[4].pos);
+            var bind_up = math.normalize((arms.points[0].bind_pos + arms.points[2].bind_pos)/2.0f - arms.points[4].bind_pos);
+        
+            complete.points[0].pos = arms.points[0].pos;
+            complete.points[1].pos = arms.points[1].pos;
+            complete.points[2].pos = arms.points[2].pos;
+            complete.points[3].pos = arms.points[3].pos;
+            complete.points[0].pinned = true;
+            complete.points[1].pinned = true;
+            complete.points[2].pinned = true;
+            complete.points[3].pinned = true;
+
+            var chest_rotation = math.mul(quaternion.LookRotation(forward, up), 
+                                          math.inverse(quaternion.LookRotation(bind_forward, bind_up)));
+
+            for(int i=5; i<14; ++i){
+                complete.points[i].pos = mid + math.mul(chest_rotation, (complete.points[i].bind_pos - bind_mid));
+                complete.points[i].pinned = true;
+            }
+            complete.points[11].pos += up * 0.4f;
+            complete.points[13].pos += up * 0.4f;
+
             complete.Constraints();
-            for(int i=0; i<complete.points.Count; ++i){
-                complete.points[i].widget.position = complete.points[i].pos;
-            }
         }
 
-        var bind_mid = (complete.points[0].bind_pos + complete.points[2].bind_pos + complete.points[9].bind_pos)/3.0f;
-        var mid = (complete.points[0].pos + complete.points[2].pos + complete.points[9].pos)/3.0f;
-        var forward = -math.normalize(math.cross(complete.points[0].pos - complete.points[2].pos, complete.points[0].pos - complete.points[9].pos));
-        var bind_forward = -math.normalize(math.cross(complete.points[0].bind_pos - complete.points[2].bind_pos, complete.points[0].bind_pos - complete.points[9].bind_pos));
-        var up = math.normalize((complete.points[0].pos + complete.points[2].pos)/2.0f - complete.points[9].pos);
-        var bind_up = math.normalize((complete.points[0].bind_pos + complete.points[2].bind_pos)/2.0f - complete.points[9].bind_pos);
+        {
+            var bind_mid = (complete.points[0].bind_pos + complete.points[2].bind_pos + complete.points[9].bind_pos)/3.0f;
+            var mid = (complete.points[0].pos + complete.points[2].pos + complete.points[9].pos)/3.0f;
+            var forward = -math.normalize(math.cross(complete.points[0].pos - complete.points[2].pos, complete.points[0].pos - complete.points[9].pos));
+            var bind_forward = -math.normalize(math.cross(complete.points[0].bind_pos - complete.points[2].bind_pos, complete.points[0].bind_pos - complete.points[9].bind_pos));
+            var up = math.normalize((complete.points[0].pos + complete.points[2].pos)/2.0f - complete.points[9].pos);
+            var bind_up = math.normalize((complete.points[0].bind_pos + complete.points[2].bind_pos)/2.0f - complete.points[9].bind_pos);
         
-        //DebugDraw.Line(mid, mid+forward, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
-        //DebugDraw.Line(mid, mid+up, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+            //DebugDraw.Line(mid, mid+forward, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+            //DebugDraw.Line(mid, mid+up, Color.green, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
 
-        bind_parts.chest.transform.rotation = Quaternion.LookRotation(forward, up) * 
-                                              Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * 
-                                              bind_parts.chest.bind_rot;
-        bind_parts.chest.transform.position = mid + 
-                                              (float3)(Quaternion.LookRotation(forward, up) * 
-                                              Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * 
-                                              (bind_parts.chest.bind_pos - bind_mid));
+            bind_parts.chest.transform.rotation = Quaternion.LookRotation(forward, up) * 
+                                                  Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * 
+                                                  bind_parts.chest.bind_rot;
+            bind_parts.chest.transform.position = mid + 
+                                                  (float3)(Quaternion.LookRotation(forward, up) * 
+                                                  Quaternion.Inverse(Quaternion.LookRotation(bind_forward, bind_up)) * 
+                                                  (bind_parts.chest.bind_pos - bind_mid));
                                             
-        ApplyBound(bind_parts.head, forward, bind_forward, 5, 6);
-        ApplyBound(bind_parts.chest, forward, bind_forward, 6, 7);
-        ApplyBound(bind_parts.belly, forward, bind_forward, 7, 8);
-        ApplyBound(bind_parts.pelvis, forward, bind_forward, 8, 9);
-        ApplyBound(bind_parts.leg_top_r, forward, bind_forward, 10, 11);
-        ApplyBound(bind_parts.leg_top_l, forward, bind_forward, 12, 13);
+            ApplyBound(bind_parts.head, forward, bind_forward, 5, 6);
+            ApplyBound(bind_parts.chest, forward, bind_forward, 6, 7);
+            ApplyBound(bind_parts.belly, forward, bind_forward, 7, 8);
+            ApplyBound(bind_parts.pelvis, forward, bind_forward, 8, 9);
+            ApplyBound(bind_parts.leg_top_r, forward, bind_forward, 10, 11);
+            ApplyBound(bind_parts.leg_top_l, forward, bind_forward, 12, 13);
 
-        for(int i=0; i<2; ++i){
-            var top = bind_parts.arm_top_r;
-            var bottom = bind_parts.arm_bottom_r;
-            if(i==1){
-                top = bind_parts.arm_top_l;
-                bottom = bind_parts.arm_bottom_l;
+            for(int i=0; i<2; ++i){
+                var top = bind_parts.arm_top_r;
+                var bottom = bind_parts.arm_bottom_r;
+                if(i==1){
+                    top = bind_parts.arm_top_l;
+                    bottom = bind_parts.arm_bottom_l;
+                }
+
+                var points = complete.points;
+                int start = i*2;
+                int end = i*2+1;
+                var old_axis = math.normalize(math.cross((points[end].bind_pos+points[start].bind_pos)*0.5f - (points[2].bind_pos + points[0].bind_pos) * 0.5f, points[start].bind_pos - points[end].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+                var axis = math.normalize(math.cross((points[end].pos+points[start].pos)*0.5f - (points[2].pos + points[0].pos) * 0.5f, points[start].pos - points[end].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+            
+                ApplyTwoBoneIK(start, end, forward, arm_ik, top, bottom, complete.points, old_axis, axis);
             }
 
-            var points = complete.points;
-            int start = i*2;
-            int end = i*2+1;
-            var old_axis = math.normalize(math.cross((points[end].bind_pos+points[start].bind_pos)*0.5f - (points[2].bind_pos + points[0].bind_pos) * 0.5f, points[start].bind_pos - points[end].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
-            var axis = math.normalize(math.cross((points[end].pos+points[start].pos)*0.5f - (points[2].pos + points[0].pos) * 0.5f, points[start].pos - points[end].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+            for(int i=0; i<2; ++i){
+                var top = bind_parts.leg_top_r;
+                var bottom = bind_parts.leg_bottom_r;
+                if(i==1){
+                    top = bind_parts.leg_top_l;
+                    bottom = bind_parts.leg_bottom_l;
+                }
             
-            ApplyTwoBoneIK(start, end, forward, arm_ik, top, bottom, complete.points, old_axis, axis);
-        }
+                var points = complete.points;
+                int start = i*2+10;
+                int end = i*2+1+10;
 
-        for(int i=0; i<2; ++i){
-            var top = bind_parts.leg_top_r;
-            var bottom = bind_parts.leg_bottom_r;
-            if(i==1){
-                top = bind_parts.leg_top_l;
-                bottom = bind_parts.leg_bottom_l;
-            }
-            
-            var points = complete.points;
-            int start = i*2+10;
-            int end = i*2+1+10;
-
-            var bind_shoulder_rotation = Quaternion.LookRotation(points[end].bind_pos - points[start].bind_pos, Vector3.forward);
-            var shoulder_rotation = Quaternion.LookRotation(points[end].pos - points[start].pos, forward) * bind_shoulder_rotation;
+                var bind_shoulder_rotation = Quaternion.LookRotation(points[end].bind_pos - points[start].bind_pos, Vector3.forward);
+                var shoulder_rotation = Quaternion.LookRotation(points[end].pos - points[start].pos, forward) * bind_shoulder_rotation;
         
-            var old_axis = bind_shoulder_rotation * Vector3.right;
-            var axis = shoulder_rotation * Vector3.right;
+                var old_axis = bind_shoulder_rotation * Vector3.right;
+                var axis = shoulder_rotation * Vector3.right;
 
-            ApplyTwoBoneIK(start, end, forward, leg_ik, top, bottom, complete.points, old_axis, axis);
+                ApplyTwoBoneIK(start, end, forward, leg_ik, top, bottom, complete.points, old_axis, axis);
+            }
         }
 
         //gibbon.transform.position = mid;
