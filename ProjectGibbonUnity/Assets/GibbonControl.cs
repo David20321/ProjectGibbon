@@ -15,7 +15,7 @@ public class GibbonControl : MonoBehaviour
     static public GameObject point_prefab_static;
     
     class HandState {
-        public Vector3 pos;
+        public float3 pos;
         public bool gripping;
     }
     float last_x;
@@ -193,8 +193,9 @@ public class GibbonControl : MonoBehaviour
     TwoBoneIK arm_ik = new TwoBoneIK();
     TwoBoneIK leg_ik = new TwoBoneIK();
 
-    Vector3 simple_pos;
-    Vector3 simple_vel = Vector3.zero;
+    float3 simple_pos;
+    float3 target_com;
+    float3 simple_vel = float3.zero;
     void Start() {
         point_prefab_static = point_prefab;
 
@@ -469,8 +470,11 @@ public class GibbonControl : MonoBehaviour
                 complete.points[i].pos = mid + math.mul(chest_rotation, (complete.points[i].bind_pos - bind_mid));
                 complete.points[i].pinned = true;
             }
-            complete.points[11].pos += up * 0.4f;
-            complete.points[13].pos += up * 0.4f;
+
+            // Leg motion
+            for(int i=0; i<2; ++i){
+                complete.points[11+i*2].pos += up * (0.35f + 0.15f * math.sin((swing_time + i*1.0f)*math.PI));
+            }
 
             complete.Constraints();
         }
@@ -543,9 +547,9 @@ public class GibbonControl : MonoBehaviour
         //gibbon.transform.position = mid;
         //gibbon.transform.rotation = Quaternion.LookRotation(forward, up);
         
-        arms.DrawBones(Color.white);
-        pendulum.DrawBones(Color.blue);
-        complete.DrawBones(Color.green);
+        //arms.DrawBones(Color.white);
+        //pendulum.DrawBones(Color.blue);
+        //complete.DrawBones(Color.green);
         
         if(!hands[0].gripping && !hands[1].gripping){
             var vel = (pendulum.points[1].pos - pendulum.points[1].old_pos) / (Time.fixedDeltaTime * 0.1f);
@@ -590,7 +594,7 @@ public class GibbonControl : MonoBehaviour
             total_mass += arms.points[i].mass;
         }
         com /= total_mass;
-        DebugDraw.Sphere(com, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+        //DebugDraw.Sphere(com, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
                 
         if(ImGui.Begin("Gibbon")){
             //ImGui.Text($"pendulum_length: {math.distance(arms.points[1].pos, com)}");
@@ -622,7 +626,7 @@ public class GibbonControl : MonoBehaviour
             DebugDraw.Line(pendulum_center, pendulum_pos, Color.blue, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );    
         }
 
-        DebugDraw.Sphere(pendulum.points[1].pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
+        //DebugDraw.Sphere(pendulum.points[1].pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray );
         
     }
     
@@ -656,20 +660,23 @@ public class GibbonControl : MonoBehaviour
         
         var old_pos = simple_pos;
         simple_vel[0] += horz_input * Time.deltaTime * 5f;
-        simple_vel[0] = math.clamp(simple_vel[0], -15f, 15f);
+        simple_vel[0] = math.clamp(simple_vel[0], -10f, 10f);
         simple_pos += simple_vel * Time.deltaTime;
         // Adjust amplitude and time scale based on speed
-        float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f+0.2f;
-        float min_height = -1f + amplitude * 0.25f;
+        float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f+0.1f;
+        float min_height = -1f + amplitude * 0.25f + math.max(0.0f, 0.1f - math.abs(simple_vel[0]) * 0.1f);
         var old_swing_time = swing_time;
-        swing_time += step*8f/(math.PI*2f);
+        float swing_speed_mult = 8f/(math.PI*2f);
+        swing_time += step*swing_speed_mult;
         if(math.ceil(old_swing_time) != math.ceil(swing_time)){
             next_hand = 1-next_hand;
         }
         simple_pos[1] = (min_height + (math.sin((swing_time-0.1f) * (math.PI*2f))+1f)*amplitude) * pendulum_length;
-        DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        target_com = simple_pos - simple_vel * 0.05f;
+        target_com[0] += (math.cos((swing_time-0.1f) * (math.PI*2f)))* pendulum_length * 0.5f * math.clamp(simple_vel[0] * 0.5f, -1f, 1f) * math.max(0f, 1f - math.abs(simple_vel[0])*2f);
+        //DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
         //DebugDraw.Line(old_pos, simple_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );    
-        float next_trough_time = ((math.ceil(swing_time)-0.25f) * (math.PI * 2.0f))/8f;
+        float next_trough_time = ((math.ceil(swing_time)-0.25f))/swing_speed_mult;
         hands[next_hand].pos = simple_pos + simple_vel * (next_trough_time-Time.time);
         hands[next_hand].pos[1] = 0.0f;
         DebugDraw.Sphere(hands[0].pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
@@ -806,8 +813,9 @@ public class GibbonControl : MonoBehaviour
             
             for(int i=0; i<2; ++i){
                // if((hands[i].pos[0] - simple_pos[0]) * simple_vel[0] > 0f){
-                    arms.points[i*2+1].pos = MoveTowards(arms.points[i*2+1].pos, hands[i].pos, math.max(0f, math.pow(math.cos((swing_time+0.25f+(1-i))*math.PI*1f)*0.5f+0.5f, 1f)) * step * 5f);
+                    arms.points[i*2+1].pos = MoveTowards(arms.points[i*2+1].pos, hands[i].pos, math.max(0f, math.cos((swing_time+0.35f+(1-i))*math.PI*1f)*0.5f+0.5f) * step * 5f);
                 //}   
+                arms.points[i*2+1].old_pos = math.lerp(arms.points[i*2+1].old_pos, arms.points[i*2+1].pos - simple_vel*step, 0.25f);
             }
             arms.StartSim(step);
             for(int j=0; j<4; ++j){
@@ -820,7 +828,7 @@ public class GibbonControl : MonoBehaviour
                     }
                 }
                 com /= total_mass;
-                var offset = (float3)simple_pos - com;
+                var offset = (float3)target_com - com;
                 /*if(arms.points[1].pinned && !arms.points[3].pinned){
                     arms.points[0].pos += offset * total_mass / arms.points[0].mass;
                 } else if(arms.points[3].pinned && !arms.points[1].pinned){
@@ -841,8 +849,8 @@ public class GibbonControl : MonoBehaviour
                 arms.points[4].pos[1] -= step_sqrd * force;
                 arms.points[0].pos[1] += step_sqrd * force * 0.5f;
                 arms.points[2].pos[1] += step_sqrd * force * 0.5f;
-                arms.points[0].pos[2] -= step_sqrd * simple_vel[0];
-                arms.points[2].pos[2] += step_sqrd * simple_vel[0];
+                arms.points[0].pos[2] -= step_sqrd * simple_vel[0] * 2.0f;
+                arms.points[2].pos[2] += step_sqrd * simple_vel[0] * 2.0f;
                 arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 2f; // Apply backwards force to maintain forwards tilt
                 arms.Constraints();
             }
