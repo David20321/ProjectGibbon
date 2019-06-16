@@ -658,10 +658,11 @@ public class GibbonControl : MonoBehaviour
         simple_vel[0] += horz_input * Time.deltaTime * 5f;
         simple_vel[0] = math.clamp(simple_vel[0], -15f, 15f);
         simple_pos += simple_vel * Time.deltaTime;
-        float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f;
+        // Adjust amplitude and time scale based on speed
+        float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f+0.2f;
         float min_height = -1f + amplitude * 0.25f;
         var old_swing_time = swing_time;
-        swing_time = Time.time*8f/(math.PI*2f);
+        swing_time += step*8f/(math.PI*2f);
         if(math.ceil(old_swing_time) != math.ceil(swing_time)){
             next_hand = 1-next_hand;
         }
