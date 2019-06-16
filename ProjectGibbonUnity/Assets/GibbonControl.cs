@@ -329,7 +329,7 @@ public class GibbonControl : MonoBehaviour
             }
         }*/
         
-        const bool manually_drag_points = false;
+        const bool manually_drag_points = true;
         if(manually_drag_points){
             for(int i=0; i<arms.points.Count; ++i){
                 arms.points[i].pos = arms.points[i].widget.position;
@@ -364,7 +364,8 @@ public class GibbonControl : MonoBehaviour
         DebugText.AddVar("elbow_angle", elbow_angle, 0.5f);
         DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
 
-        var elbow_axis = shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
+        // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
+        var elbow_axis = math.normalize(math.cross((arms.points[3].pos+arms.points[2].pos)*0.5f - (arms.points[2].pos + arms.points[0].pos) * 0.5f, arms.points[2].pos - arms.points[3].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
         shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, elbow_axis) * shoulder_rotation;
         arm_top_l.transform.position = arm_top_l.bind_pos + shoulder_offset;
         arm_top_l.transform.rotation = shoulder_rotation * arm_top_l.bind_rot;
@@ -627,7 +628,7 @@ public class GibbonControl : MonoBehaviour
         }
         }
 
-        bool arms_map = true;
+        bool arms_map = false;
         if(arms_map){
             /*arms.points[1].pinned = hands[0].gripping;
             if(hands[0].gripping){
