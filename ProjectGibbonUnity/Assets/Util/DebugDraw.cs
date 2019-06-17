@@ -1,8 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEditor;
 using System;
+#if UNITY_EDITOR
+using UnityEditor;
 
 public class ScriptOrder:Attribute {
     public int order;
@@ -30,6 +31,7 @@ public class ScriptOrderManager {
 }
 
 [ScriptOrder(-100)]
+#endif
 public class DebugDraw : MonoBehaviour {
     public GameObject translucent_sphere_prefab;
     static DebugDraw instance;
