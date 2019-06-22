@@ -55,6 +55,7 @@ public class GibbonControl : MonoBehaviour
     // Particle simulation systems
     Verlet.System arms =     new Verlet.System(); // For swinging
     Verlet.System complete = new Verlet.System(); // For final animation
+    Verlet.System branches = new Verlet.System();
 
     // IK helper
     class TwoBoneIK {
@@ -181,6 +182,11 @@ public class GibbonControl : MonoBehaviour
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         complete.AddBone("leg_l", 12, 13);
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
+        
+        branches.AddPoint(new float3(0,0,0), "branch");
+        branches.AddPoint(new float3(10,4,0), "branch");
+        branches.AddBone("branch", 0, 1);
+        branches.points[0].pinned = true;
     }
         
     // Use law of cosines to find angles of triangle
@@ -239,6 +245,12 @@ public class GibbonControl : MonoBehaviour
                        Quaternion.Inverse(Quaternion.LookRotation(bind_up, bind_forward));
         part.transform.rotation = rotation * part.bind_rot;
         part.transform.position = mid + (float3)(rotation * (part.bind_pos - bind_mid));
+    }
+
+    float BranchHeight(float x, int start, int end){
+        float branch_t = (x-branches.points[start].bind_pos[0])/(branches.points[end].bind_pos[0]-branches.points[start].bind_pos[0]);
+        return math.lerp(branches.points[start].pos[1], branches.points[end].pos[1], branch_t);
+        
     }
 
     // Prepare to draw next frame
@@ -347,6 +359,8 @@ public class GibbonControl : MonoBehaviour
             }
         }
 
+        branches.DrawBones(new Color(0.5f, 0.5f, 0.1f, 1.0f));
+
         if(ImGui.Begin("Gibbon")){
             ImGui.Text($"horz speed: {math.abs(simple_vel[0])}");  
             ImGui.Text($"swing time: {swing_time}");  
@@ -402,16 +416,32 @@ public class GibbonControl : MonoBehaviour
         }
         var pendulum_length = 0.9f;
         simple_pos[1] = (min_height + (math.sin((swing_time-0.1f) * (math.PI*2f))+1f)*amplitude) * pendulum_length;
+        
+        //DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        //DebugDraw.Line(old_pos, simple_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );    
+        
+        // Branches
+        float branch_t = (simple_pos[0]-branches.points[0].bind_pos[0])/(branches.points[1].bind_pos[0]-branches.points[0].bind_pos[0]);
+        DebugDraw.Sphere(math.lerp(branches.points[0].pos, branches.points[1].pos, branch_t), Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        
+        /*branches.StartSim(step);
+        branches.points[1].pos[1] -= branch_t * step * step * 100f * math.max(0,math.cos(swing_time*math.PI*2.0f));
+        branches.points[1].pos = math.lerp(branches.points[1].pos, branches.points[1].bind_pos, 0.1f);
+        branches.Constraints();
+        branches.EndSim();
+        */
+
+        simple_pos[1] += BranchHeight(simple_pos[0],0,1);
+
         target_com = simple_pos - simple_vel * 0.05f;
         target_com[0] += (math.cos((swing_time-0.1f) * (math.PI*2f)))* pendulum_length * 0.5f * math.clamp(simple_vel[0] * 0.5f, -1f, 1f) * math.max(0f, 1f - math.abs(simple_vel[0])*2f);
-        
-        DebugDraw.Sphere(simple_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
-        DebugDraw.Line(old_pos, simple_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray );    
         
         // Figure out target hand positions
         float next_trough_time = ((math.ceil(swing_time)-0.25f))/swing_speed_mult;
         hands[next_hand].pos = simple_pos + simple_vel * (next_trough_time-Time.time);
-        hands[next_hand].pos[1] = 0.0f;
+        for(int i=0; i<2; ++i){
+            hands[i].pos[1] = BranchHeight(hands[i].pos[0],0,1);
+        }
         DebugDraw.Sphere(hands[0].pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
         DebugDraw.Sphere(hands[1].pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
         
