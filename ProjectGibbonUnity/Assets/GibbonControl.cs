@@ -527,14 +527,12 @@ public class GibbonControl : MonoBehaviour
                         arms.points[i*2].pos[0] += step_sqrd * -3.0f * (math.cos((swing_time + tilt_offset) * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / swing_speed_mult;
                     }
                     // Move arms out to sides                    
-                    arms.points[1].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f;
-                    arms.points[3].pos -= step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f;
-                    arms.points[1].pos -= step_sqrd * forward * 3.0f * arms_up;
-                    arms.points[3].pos -= step_sqrd * forward * 3.0f * arms_up;
-                    arms.points[1].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
-                    arms.points[3].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
-                    arms.bones[0].length[1] = arms.bones[0].length[0] / 0.4f * 0.9f;
-                    arms.bones[1].length[1] = arms.bones[0].length[0] / 0.4f * 0.9f;
+                    for(int i=0; i<2; ++i){
+                        arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f * (1-i*2);
+                        arms.points[1+i*2].pos -= step_sqrd * forward * 3.0f * arms_up;;
+                        arms.points[1+i*2].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
+                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (0.9f + math.sin(arms_up * math.PI)*0.1f);
+                    }
 
                     arms.Constraints();
                 }
