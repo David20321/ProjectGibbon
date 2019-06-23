@@ -197,9 +197,14 @@ public class GibbonControl : MonoBehaviour
         complete.AddBone("leg_l", 12, 13);
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         
-        branches.AddPoint(new float3(0,0,0), "branch");
-        branches.AddPoint(new float3(10,0,0), "branch");
-        branches.AddBone("branch", 0, 1);
+        int num_segments = 10;
+        for(int i=0; i<num_segments+1; ++i){
+        branches.AddPoint(new float3(i*5,UnityEngine.Random.Range(-3.0f, 3.0f),0), "branch");
+        }
+        
+        for(int i=0; i<num_segments; ++i){
+            branches.AddBone("branch", i, i+1);
+        }
         branches.points[0].pinned = true;
     }
         
@@ -264,7 +269,20 @@ public class GibbonControl : MonoBehaviour
     float BranchHeight(float x, int start, int end){
         float branch_t = (x-branches.points[start].bind_pos[0])/(branches.points[end].bind_pos[0]-branches.points[start].bind_pos[0]);
         return math.lerp(branches.points[start].pos[1], branches.points[end].pos[1], branch_t);
-        
+    }
+    
+    float BranchesHeight(float x){
+        for(int i=0;i<branches.bones.Count; ++i){
+            var bone = branches.bones[i];
+            if(x >= branches.points[bone.points[0]].pos[0] && x < branches.points[bone.points[1]].pos[0]){
+                return BranchHeight(x, bone.points[0], bone.points[1]);
+            }
+        }
+        if(x < 0.0f){
+            return branches.points[0].pos[1];
+        } else {
+            return branches.points[branches.points.Count-1].pos[1];
+        }
     }
 
     bool in_air;
@@ -468,12 +486,12 @@ public class GibbonControl : MonoBehaviour
             jump_com_offset *= 0.99f;
             simple_vel += (float3)Physics.gravity * step;
 
-            if(simple_vel[1] <= 0.0f && simple_pos[1] < BranchHeight(simple_pos[0],0,1)){
+            if(simple_vel[1] <= 0.0f && simple_pos[1] < BranchesHeight(simple_pos[0])){
                 in_air = false;
             }
         }
         if(!in_air){
-            simple_pos[1] = BranchHeight(simple_pos[0],0,1);
+            simple_pos[1] = BranchesHeight(simple_pos[0]);
             simple_vel[1] = 0.0f;
         }
         in_air_amount = Mathf.MoveTowards(in_air_amount, in_air?1.0f:0.0f, 1f);// step * 10f);
@@ -504,7 +522,7 @@ public class GibbonControl : MonoBehaviour
             float next_trough_time = ((math.ceil(swing_time)-0.25f))/swing_speed_mult;
             swing.limb_targets[next_hand] = simple_pos + simple_vel * (next_trough_time-Time.time);
             for(int i=0; i<2; ++i){
-                swing.limb_targets[i][1] = BranchHeight(swing.limb_targets[i][0],0,1);
+                swing.limb_targets[i][1] = BranchesHeight(swing.limb_targets[i][0]);
             }
             DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
             DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
@@ -676,7 +694,11 @@ public class GibbonControl : MonoBehaviour
                 for(int i=0; i<2; ++i){
                     walk.limb_targets[2+i] = simple_pos;
                     walk.limb_targets[2+i][1] += (-math.sin(walk_time * math.PI * 2.0f + math.PI*i) + 1.0f)*0.15f * (math.pow(math.abs(simple_vel[0]) + 1.0f, 0.3f) - 1.0f);
-                    float3 move_dir = math.normalize(branches.points[1].pos - branches.points[0].pos);
+                    var left = simple_pos - new float3(0.1f,0.0f,0.0f);
+                    var right = simple_pos + new float3(0.1f,0.0f,0.0f);
+                    left[1] = BranchesHeight(left[0]);
+                    right[1] = BranchesHeight(right[0]);
+                    float3 move_dir = math.normalize(right - left);
                     walk.limb_targets[2+i] += move_dir * (math.cos(walk_time * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / speed_mult;
                     walk.limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * 0.3f;
                 }
