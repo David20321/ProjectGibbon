@@ -177,7 +177,7 @@ public class GibbonControl : MonoBehaviour
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         
         branches.AddPoint(new float3(0,0,0), "branch");
-        branches.AddPoint(new float3(10,0,0), "branch");
+        branches.AddPoint(new float3(10,10,0), "branch");
         branches.AddBone("branch", 0, 1);
         branches.points[0].pinned = true;
     }
@@ -443,7 +443,7 @@ public class GibbonControl : MonoBehaviour
             DebugDraw.Sphere(limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
         
             // Use COM and hand positions to drive arm rig
-            bool arms_map = false;
+            bool arms_map = true;
             if(arms_map){
                 // Move hands towards grip targets
                 for(int i=0; i<2; ++i){
@@ -540,7 +540,8 @@ public class GibbonControl : MonoBehaviour
                 for(int i=0; i<2; ++i){
                     limb_targets[2+i] = simple_pos;
                     limb_targets[2+i][1] += (-math.sin(swing_time * math.PI * 2.0f + math.PI*i) + 1.0f)*0.15f * (math.pow(math.abs(simple_vel[0]) + 1.0f, 0.3f) - 1.0f);
-                    limb_targets[2+i][0] += (math.cos(swing_time * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / swing_speed_mult;
+                    float3 move_dir = math.normalize(branches.points[1].pos - branches.points[0].pos);
+                    limb_targets[2+i] += move_dir * (math.cos(swing_time * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / swing_speed_mult;
                     limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * 0.3f;
                 }
             }
