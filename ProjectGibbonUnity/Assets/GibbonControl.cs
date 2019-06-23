@@ -196,7 +196,7 @@ public class GibbonControl : MonoBehaviour
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         
         branches.AddPoint(new float3(0,0,0), "branch");
-        branches.AddPoint(new float3(10,4,0), "branch");
+        branches.AddPoint(new float3(10,0,0), "branch");
         branches.AddBone("branch", 0, 1);
         branches.points[0].pinned = true;
     }
@@ -265,6 +265,8 @@ public class GibbonControl : MonoBehaviour
         
     }
 
+    bool in_air;
+
     // Prepare to draw next frame
     void Update() {                        
         // Used to test out verlet systems by dragging points around in Scene view
@@ -277,6 +279,11 @@ public class GibbonControl : MonoBehaviour
             for(int i=0; i<arms.points.Count; ++i){
                 arms.points[i].widget.position = arms.points[i].pos;
             }
+        }
+
+        if(Input.GetKeyDown(KeyCode.Space)){
+            in_air = true;
+            simple_vel[1] = 5.0f;
         }
 
         // Use "arms" rig to drive full body IK rig
@@ -439,10 +446,19 @@ public class GibbonControl : MonoBehaviour
 
         // Simple velocity control
         var old_pos = simple_pos;
-        simple_vel[0] += horz_input * Time.deltaTime * 5f;
+        simple_vel[0] += horz_input * step * 5f;
         simple_vel[0] = math.clamp(simple_vel[0], -10f, 10f);
-        simple_pos += simple_vel * Time.deltaTime;
-        simple_pos[1] = BranchHeight(simple_pos[0],0,1);
+        simple_pos += simple_vel * step;
+        if(in_air){
+            simple_vel += (float3)Physics.gravity * step;
+            
+            if(simple_vel[1] <= 0.0f && simple_pos[1] < BranchHeight(simple_pos[0],0,1)){
+                in_air = false;
+            }
+        }
+        if(!in_air){
+            simple_pos[1] = BranchHeight(simple_pos[0],0,1);
+        }
 
         { // swing
             // Adjust amplitude and time scale based on speed
