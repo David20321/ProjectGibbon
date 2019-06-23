@@ -365,6 +365,8 @@ public class GibbonControl : MonoBehaviour
             ImGui.Text($"swing time: {swing_time}");  
             ImGui.SliderFloat("climb_amount", ref climb_amount, 0f, 1f);
             ImGui.SliderFloat("com_offset_amount", ref com_offset_amount, 0f, 1f);
+            ImGui.SliderFloat("base_walk_height", ref base_walk_height, 0f, 1f);
+            ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
         }
         ImGui.End();
 
@@ -384,6 +386,8 @@ public class GibbonControl : MonoBehaviour
 
     float climb_amount = 0f;
     float com_offset_amount = 0.25f;
+    float base_walk_height = 0.7f;
+    float tilt_offset = 0.81f;
 
     // Apply actual controls and physics
     void Step(float step) {
@@ -479,11 +483,11 @@ public class GibbonControl : MonoBehaviour
 
         bool walk = true;
         if(walk){
-            float swing_speed_mult = 8f/(math.PI*2f) * math.pow((math.abs(simple_vel[0])+1.0f),0.5f);
+            float swing_speed_mult = 8f/(math.PI*2f) * math.pow((math.abs(simple_vel[0])+1.0f),0.4f);
             swing_time += step*swing_speed_mult;
 
             target_com = simple_pos;
-            target_com[1] += 0.7f + math.sin((swing_time+com_offset_amount) * math.PI * 4.0f) * math.abs(simple_vel[0]) * 0.015f / swing_speed_mult + math.abs(simple_vel[0])*0.01f;
+            target_com[1] += base_walk_height + math.sin((swing_time+com_offset_amount) * math.PI * 4.0f) * math.abs(simple_vel[0]) * 0.015f / swing_speed_mult + math.abs(simple_vel[0])*0.01f;
 
             bool arms_map = true;
             if(arms_map){
@@ -501,23 +505,30 @@ public class GibbonControl : MonoBehaviour
                     com /= total_mass;
                     var offset = (float3)target_com - com;
                     for(int i=0; i<arms.points.Count; ++i){
-                        if(i!=1 && i!=3){
+                        //if(i!=1 && i!=3){
                             arms.points[i].pos += offset;
-                        }
+                        //}
                     }
                     // Apply torque to keep torso upright and forward-facing
                     float step_sqrd = step*step;
                     float force = 20f;
-                    arms.points[4].pos[1] -= step_sqrd * force;
-                    arms.points[0].pos[1] += step_sqrd * force * 0.5f;
-                    arms.points[2].pos[1] += step_sqrd * force * 0.5f;
+                    var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+                    float3 top_force = new float3(0,1,0) * force;
+                    top_force += forward * 5.0f;
+                    arms.points[4].pos += step_sqrd * -top_force;
+                    arms.points[0].pos += step_sqrd * top_force * 0.5f;
+                    arms.points[2].pos += step_sqrd * top_force * 0.5f;
                     arms.points[0].pos[2] -= step_sqrd * simple_vel[0] * 2.0f;
                     arms.points[2].pos[2] += step_sqrd * simple_vel[0] * 2.0f;
-                    //arms.points[4].pos[0] -= simple_vel[0] * step_sqrd; // Apply backwards force to maintain forwards tilt
-
+                    
+                    for(int i=0; i<2; ++i){
+                        arms.points[i*2].pos[0] += step_sqrd * -3.0f * (math.cos((swing_time + tilt_offset) * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / swing_speed_mult;
+                    }
                     // Move arms out to sides                    
                     arms.points[1].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f;
                     arms.points[3].pos -= step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f;
+                    arms.points[1].pos -= step_sqrd * forward * 3.0f;
+                    arms.points[3].pos -= step_sqrd * forward * 3.0f;
                     arms.bones[0].length[1] = arms.bones[0].length[0] / 0.4f * 0.9f;
                     arms.bones[1].length[1] = arms.bones[0].length[0] / 0.4f * 0.9f;
 
@@ -528,7 +539,7 @@ public class GibbonControl : MonoBehaviour
                     limb_targets[2+i] = simple_pos;
                     limb_targets[2+i][1] += (-math.sin(swing_time * math.PI * 2.0f + math.PI*i) + 1.0f)*0.15f * (math.pow(math.abs(simple_vel[0]) + 1.0f, 0.3f) - 1.0f);
                     limb_targets[2+i][0] += (math.cos(swing_time * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / swing_speed_mult;
-                    limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * 0.2f;
+                    limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * 0.3f;
                 }
             }
         }
