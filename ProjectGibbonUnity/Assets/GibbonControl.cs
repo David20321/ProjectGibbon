@@ -367,6 +367,7 @@ public class GibbonControl : MonoBehaviour
             ImGui.SliderFloat("com_offset_amount", ref com_offset_amount, 0f, 1f);
             ImGui.SliderFloat("base_walk_height", ref base_walk_height, 0f, 1f);
             ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
+            ImGui.SliderFloat("arms_up", ref arms_up, 0f, 1f);
         }
         ImGui.End();
 
@@ -388,6 +389,7 @@ public class GibbonControl : MonoBehaviour
     float com_offset_amount = 0.25f;
     float base_walk_height = 0.7f;
     float tilt_offset = 0.81f;
+    float arms_up = 0.0f;
 
     // Apply actual controls and physics
     void Step(float step) {
@@ -527,8 +529,10 @@ public class GibbonControl : MonoBehaviour
                     // Move arms out to sides                    
                     arms.points[1].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f;
                     arms.points[3].pos -= step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f;
-                    arms.points[1].pos -= step_sqrd * forward * 3.0f;
-                    arms.points[3].pos -= step_sqrd * forward * 3.0f;
+                    arms.points[1].pos -= step_sqrd * forward * 3.0f * arms_up;
+                    arms.points[3].pos -= step_sqrd * forward * 3.0f * arms_up;
+                    arms.points[1].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
+                    arms.points[3].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
                     arms.bones[0].length[1] = arms.bones[0].length[0] / 0.4f * 0.9f;
                     arms.bones[1].length[1] = arms.bones[0].length[0] / 0.4f * 0.9f;
 
