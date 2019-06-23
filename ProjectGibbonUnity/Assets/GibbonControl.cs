@@ -77,6 +77,7 @@ public class GibbonControl : MonoBehaviour
     }
     MovementSystem walk = new MovementSystem();
     MovementSystem swing = new MovementSystem();
+    MovementSystem jump = new MovementSystem();
 
     void Start() {
         Verlet.point_prefab_static = point_prefab;
@@ -137,11 +138,12 @@ public class GibbonControl : MonoBehaviour
         float measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(elbow.position, grip.position);
             
         // Set up particles and bones for swinging sim
-        for(int i=0; i<3; ++i){
+        for(int i=0; i<4; ++i){
             Verlet.System temp;
             switch(i){
                 case 0:  temp = arms; break;
                 case 1:  temp = walk.arms; break;
+                case 2:  temp = jump.arms; break;
                 default:  temp = swing.arms; break;
             }
             temp.AddPoint(shoulder.position, "shoulder_r");
@@ -266,6 +268,9 @@ public class GibbonControl : MonoBehaviour
     }
 
     bool in_air;
+    float in_air_amount = 0.0f;
+    float3 jump_com_offset;
+    float jump_time;
 
     // Prepare to draw next frame
     void Update() {                        
@@ -284,6 +289,16 @@ public class GibbonControl : MonoBehaviour
         if(Input.GetKeyDown(KeyCode.Space)){
             in_air = true;
             simple_vel[1] = 5.0f;
+
+            float total_mass = 0f;
+            var com = float3.zero;
+            for(int i=0; i<arms.points.Count; ++i){
+                com += arms.points[i].pos * arms.points[i].mass;
+                total_mass += arms.points[i].mass;
+            }
+            com /= total_mass;
+            jump_com_offset = com-simple_pos;
+            jump_time = Time.time;
         }
 
         // Use "arms" rig to drive full body IK rig
@@ -450,15 +465,20 @@ public class GibbonControl : MonoBehaviour
         simple_vel[0] = math.clamp(simple_vel[0], -10f, 10f);
         simple_pos += simple_vel * step;
         if(in_air){
+            jump_com_offset *= 0.99f;
             simple_vel += (float3)Physics.gravity * step;
-            
+
             if(simple_vel[1] <= 0.0f && simple_pos[1] < BranchHeight(simple_pos[0],0,1)){
                 in_air = false;
             }
         }
         if(!in_air){
             simple_pos[1] = BranchHeight(simple_pos[0],0,1);
+            simple_vel[1] = 0.0f;
         }
+        in_air_amount = Mathf.MoveTowards(in_air_amount, in_air?1.0f:0.0f, 1f);// step * 10f);
+
+        DebugDraw.Sphere(simple_pos, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
 
         { // swing
             // Adjust amplitude and time scale based on speed
@@ -489,10 +509,15 @@ public class GibbonControl : MonoBehaviour
             DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
             DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
         
-            var arms = swing.arms;
-            // Use COM and hand positions to drive arm rig
-            bool arms_map = true;
-            if(arms_map){
+            if(in_air){
+                swing.arms.StartSim(step);
+                for(int i=0; i<arms.points.Count; ++i){
+                    swing.arms.points[i].pos = arms.points[i].pos;
+                }
+                swing.arms.EndSim();
+            } else {
+                var arms = swing.arms;
+                // Use COM and hand positions to drive arm rig
                 // Move hands towards grip targets
                 for(int i=0; i<2; ++i){
                     arms.points[i*2+1].pos = MoveTowards(arms.points[i*2+1].pos, swing.limb_targets[i], math.max(0f, math.cos((swing_time+0.35f+(1-i))*math.PI*1f)*0.5f+0.5f) * step * 5f);
@@ -535,6 +560,57 @@ public class GibbonControl : MonoBehaviour
                 }
             }
         }
+        
+        { // jump
+            jump.target_com = simple_pos + jump_com_offset;
+
+            if(!in_air){
+                jump.arms.StartSim(step);
+                for(int i=0; i<arms.points.Count; ++i){
+                    jump.arms.points[i].pos = arms.points[i].pos;
+                }
+                jump.arms.EndSim();
+            } else {
+            var arms = jump.arms;
+            // Use COM and hand positions to drive arm rig
+            bool arms_map = true;
+            if(arms_map){
+                // Move hands towards grip targets
+                arms.StartSim(step);
+                for(int j=0; j<4; ++j){
+                    // Adjust all free points to match target COM
+                    float total_mass = 0f;
+                    var com = float3.zero;
+                    for(int i=0; i<arms.points.Count; ++i){
+                        com += arms.points[i].pos * arms.points[i].mass;
+                        total_mass += arms.points[i].mass;
+                    }
+                    com /= total_mass;
+                    var offset = jump.target_com - com;
+                    for(int i=0; i<arms.points.Count; ++i){
+                        arms.points[i].pos += offset;
+                    }
+                    // Apply torque to keep torso upright and forward-facing
+                    float step_sqrd = step*step;
+                    float force = 10f;
+                    arms.points[4].pos[1] -= step_sqrd * force;
+                    arms.points[0].pos[1] += step_sqrd * force * 0.5f;
+                    arms.points[2].pos[1] += step_sqrd * force * 0.5f;
+                    arms.points[0].pos[2] -= step_sqrd * simple_vel[0] * 1.0f;
+                    arms.points[2].pos[2] += step_sqrd * simple_vel[0] * 1.0f;
+                    arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 1f; // Apply backwards force to maintain forwards tilt
+                    arms.Constraints();
+                }
+                arms.EndSim();
+                
+                var up = math.normalize((arms.points[0].pos+arms.points[2].pos)*0.5f-arms.points[4].pos);
+                var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+                for(int i=0; i<2; ++i){
+                    jump.limb_targets[2+i] = arms.points[i*2].pos - up + (up * 0.5f + forward * 0.1f) * math.min(1.0f, Time.time - jump_time);
+                }
+            }
+            }
+        }
 
         bool calc_walk = true;
         if(calc_walk){
@@ -545,9 +621,14 @@ public class GibbonControl : MonoBehaviour
             float crouch_amount = 1.0f-climb_amount;
             target_com[1] += math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+com_offset_amount) * math.PI * 4.0f) * math.abs(simple_vel[0]) * 0.015f / speed_mult + math.abs(simple_vel[0])*0.01f;
             
-            var arms = walk.arms;
-            bool arms_map = true;
-            if(arms_map){
+            if(in_air){
+                walk.arms.StartSim(step);
+                for(int i=0; i<arms.points.Count; ++i){
+                    walk.arms.points[i].pos = arms.points[i].pos;
+                }
+                walk.arms.EndSim();
+            } else {
+                var arms = walk.arms;
                 arms.StartSim(step);
                 for(int j=0; j<4; ++j){
                     // Adjust all free points to match target COM
@@ -605,10 +686,12 @@ public class GibbonControl : MonoBehaviour
         {
             for(int i=0; i<arms.points.Count; ++i){
                 arms.points[i].pos = math.lerp(swing.arms.points[i].pos, walk.arms.points[i].pos, climb_amount);
+                arms.points[i].pos = math.lerp(arms.points[i].pos, jump.arms.points[i].pos, in_air_amount);
             }
             arms.Constraints();
             for(int i=0; i<4; ++i){
                 limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], climb_amount);
+                limb_targets[i] = math.lerp(limb_targets[i], jump.limb_targets[i], in_air_amount);
             }
         }
 
