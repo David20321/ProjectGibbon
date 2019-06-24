@@ -511,9 +511,31 @@ public class GibbonControl : MonoBehaviour
             var pendulum_length = 0.9f;
             
             swing.target_com = simple_pos - simple_vel * 0.05f;
-            swing.target_com[1] += (min_height + (math.sin((swing_time-0.1f) * (math.PI*2f))+1f)*amplitude) * pendulum_length;
             swing.target_com[0] += (math.cos((swing_time-0.1f) * (math.PI*2f)))* pendulum_length * 0.5f * math.clamp(simple_vel[0] * 0.5f, -1f, 1f) * math.max(0f, 1f - math.abs(simple_vel[0])*2f);
-        
+            
+            if(false){
+                float3 min_hand, max_hand;
+                min_hand = swing.limb_targets[0];
+                max_hand = swing.limb_targets[1];
+                if(min_hand[0] != max_hand[0]){
+                    if(max_hand[0] < min_hand[0]){
+                        var temp = max_hand;
+                        max_hand = min_hand;
+                        min_hand = temp;
+                    }
+                    if(swing.target_com[0] > min_hand[0] && swing.target_com[1] < max_hand[0]){
+                        min_hand[1] = BranchesHeight(min_hand[0]);
+                        max_hand[1] = BranchesHeight(max_hand[0]);
+                        float interp = (swing.target_com[0] - min_hand[0]) / (max_hand[0] - min_hand[0]);
+                        swing.target_com[1] = math.lerp(min_hand[1], max_hand[1], interp);
+                    }
+                
+                    //swing.target_com[1] = math.lerp(BranchesHeight(simple_pos[0] - simple_vel[0] * 0.5f), BranchesHeight(simple_pos[0] + simple_vel[0] * 0.5f), 0.5f);
+                }
+            }
+
+            swing.target_com[1] += (min_height + (math.sin((swing_time-0.1f) * (math.PI*2f))+1f)*amplitude) * pendulum_length;
+            
             float pull_up = climb_amount;
             swing.target_com[1] += pull_up;
             
