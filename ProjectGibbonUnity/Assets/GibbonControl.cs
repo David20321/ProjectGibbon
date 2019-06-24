@@ -7,14 +7,14 @@ using Unity.Mathematics;
 using Unity.Collections;
 
 namespace Wolfire {
-public class GibbonControl : MonoBehaviour
-{
+public class GibbonControl : MonoBehaviour {
     public GameObject display_gibbon; // Character mesh and bone transforms
     public GameObject point_prefab; // Widget for manipulating point positions
     
     // Current target position for each hand
     float3[] limb_targets;
     int next_hand = 1; // Which hand to grip with next
+    float3 locked_handhold;
     
     // Bind poses for each skinned bone
     class BindPart {
@@ -49,8 +49,8 @@ public class GibbonControl : MonoBehaviour
     BindParts bind_parts = new BindParts();
     
     // Particle simulation systems
-    Verlet.System arms =     new Verlet.System(); // For swinging
-    Verlet.System complete = new Verlet.System(); // For final animation
+    Verlet.System arms =     new Verlet.System();
+    Verlet.System complete = new Verlet.System();
     Verlet.System branches = new Verlet.System();
 
     // IK helper
@@ -197,15 +197,18 @@ public class GibbonControl : MonoBehaviour
         complete.AddBone("leg_l", 12, 13);
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         
-        int num_segments = 10;
+        int num_segments = 40;
+        float x = 0;
+        float y = 0;
         for(int i=0; i<num_segments+1; ++i){
-        branches.AddPoint(new float3(i*5,UnityEngine.Random.Range(-3.0f, 3.0f),0), "branch");
+            branches.AddPoint(new float3(x,y,0), "branch");
+            x += UnityEngine.Random.Range(2.0f, 6.0f);
+            y += UnityEngine.Random.Range(-3.0f, 3.0f);
+            y = math.clamp(y, -2.5f, 2.5f);
         }
-        
         for(int i=0; i<num_segments; ++i){
             branches.AddBone("branch", i, i+1);
         }
-        branches.points[0].pinned = true;
     }
         
     // Use law of cosines to find angles of triangle
@@ -351,11 +354,6 @@ public class GibbonControl : MonoBehaviour
                 complete.points[11+i*2].pos = limb_targets[2+i];
             }
             
-            // Leg motion
-            /*for(int i=0; i<2; ++i){
-                complete.points[11+i*2].pos += up * (0.35f + 0.15f * math.sin((swing_time + i*1.0f)*math.PI));
-            }*/
-
             complete.Constraints();
         }
 
@@ -417,7 +415,7 @@ public class GibbonControl : MonoBehaviour
         }
 
         branches.DrawBones(new Color(0.5f, 0.5f, 0.1f, 1.0f));
-        arms.DrawBones(Color.white);
+        //arms.DrawBones(Color.white);
 
         if(ImGui.Begin("Gibbon")){
             ImGui.Text($"horz speed: {math.abs(simple_vel[0])}");  
@@ -451,6 +449,14 @@ public class GibbonControl : MonoBehaviour
     float arms_up = 0.0f;
     bool wants_to_swing = true;
 
+    void Swap(ref float3 a, ref float3 b){
+        var temp = a;
+        a = b;
+        b = temp;
+    }
+    
+    float3 old_test_pos;
+
     // Apply actual controls and physics
     void Step(float step) {
         // Transform controls to axes
@@ -477,10 +483,15 @@ public class GibbonControl : MonoBehaviour
 
         climb_amount = Mathf.MoveTowards(climb_amount, wants_to_swing?0.0f:1.0f, step * 2f);
 
+        float max_speed = 10f;
+        if(!in_air && climb_amount > 0.5f){
+            max_speed = 7f;
+        }
+
         // Simple velocity control
         var old_pos = simple_pos;
         simple_vel[0] += horz_input * step * 5f;
-        simple_vel[0] = math.clamp(simple_vel[0], -10f, 10f);
+        simple_vel[0] = math.clamp(simple_vel[0], -max_speed, max_speed);
         simple_pos += simple_vel * step;
         if(in_air){
             jump_com_offset *= 0.99f;
@@ -496,8 +507,18 @@ public class GibbonControl : MonoBehaviour
         }
         in_air_amount = Mathf.MoveTowards(in_air_amount, in_air?1.0f:0.0f, 1f);// step * 10f);
 
-        DebugDraw.Sphere(simple_pos, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
-
+        var test_pos = simple_pos + simple_vel * 0.1f;
+        test_pos[1] = BranchesHeight(test_pos[0]);
+        var test_pos2 = simple_pos + simple_vel * -0.1f;
+        test_pos2[1] = BranchesHeight(test_pos2[0]);
+        var new_pos = (test_pos + test_pos2 + simple_pos) / 3.0f;
+        /*DebugDraw.Sphere(simple_pos, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        DebugDraw.Sphere(test_pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        DebugDraw.Sphere(test_pos2, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        DebugDraw.Sphere((test_pos+test_pos2)*0.5f, Color.green, Vector3.one * 0.2f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        DebugDraw.Line(old_test_pos, new_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);*/
+        old_test_pos = new_pos;
+        
         { // swing
             // Adjust amplitude and time scale based on speed
             float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f+0.1f;
@@ -506,31 +527,48 @@ public class GibbonControl : MonoBehaviour
             float swing_speed_mult = 8f/(math.PI*2f);
             swing_time += step*swing_speed_mult;
             if(math.ceil(old_swing_time) != math.ceil(swing_time)){
+                locked_handhold = limb_targets[next_hand];
                 next_hand = 1-next_hand;
             }
-            var pendulum_length = 0.9f;
+                        
+            // Figure out target hand positions
+            float next_trough_time = ((math.ceil(swing_time)-0.25f))/swing_speed_mult;
+            swing.limb_targets[next_hand] = simple_pos + simple_vel * (next_trough_time-Time.time);
+            for(int i=0; i<2; ++i){
+                swing.limb_targets[i][1] = BranchesHeight(swing.limb_targets[i][0]);
+            }
             
+            var pendulum_length = 0.9f;
             swing.target_com = simple_pos - simple_vel * 0.05f;
             swing.target_com[0] += (math.cos((swing_time-0.1f) * (math.PI*2f)))* pendulum_length * 0.5f * math.clamp(simple_vel[0] * 0.5f, -1f, 1f) * math.max(0f, 1f - math.abs(simple_vel[0])*2f);
             
-            if(false){
-                float3 min_hand, max_hand;
-                min_hand = swing.limb_targets[0];
-                max_hand = swing.limb_targets[1];
-                if(min_hand[0] != max_hand[0]){
-                    if(max_hand[0] < min_hand[0]){
-                        var temp = max_hand;
-                        max_hand = min_hand;
-                        min_hand = temp;
-                    }
-                    if(swing.target_com[0] > min_hand[0] && swing.target_com[1] < max_hand[0]){
-                        min_hand[1] = BranchesHeight(min_hand[0]);
-                        max_hand[1] = BranchesHeight(max_hand[0]);
-                        float interp = (swing.target_com[0] - min_hand[0]) / (max_hand[0] - min_hand[0]);
-                        swing.target_com[1] = math.lerp(min_hand[1], max_hand[1], interp);
-                    }
-                
-                    //swing.target_com[1] = math.lerp(BranchesHeight(simple_pos[0] - simple_vel[0] * 0.5f), BranchesHeight(simple_pos[0] + simple_vel[0] * 0.5f), 0.5f);
+            // Smooth out motion so COM follows line between handholds instead of branch itself
+            // e.g. movement should be horizontal when swinging from one tip of a V shape to the next
+            {
+                var points = new float3[3];
+                points[0] = swing.limb_targets[0];
+                points[1] = swing.limb_targets[1];
+                points[2] = swing.limb_targets[next_hand] + simple_vel / swing_speed_mult;
+                points[2][1] = BranchesHeight(points[2][0]);
+                if(points[0][0] > points[1][0]){
+                    Swap(ref points[0], ref points[1]);
+                }
+                if(points[1][0] > points[2][0]){
+                    Swap(ref points[1], ref points[2]);
+                }
+                if(points[0][0] > points[1][0]){
+                    Swap(ref points[0], ref points[1]);
+                }
+
+                //DebugDraw.Line(points[0], points[1], Color.cyan, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+                //DebugDraw.Line(points[1], points[2], Color.gray, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+        
+                if(swing.target_com[0] < points[1][0]){
+                    float interp = math.max(0, (swing.target_com[0]-points[0][0]) / (points[1][0] - points[0][0]));
+                    swing.target_com[1] = math.lerp(points[0][1], points[1][1], interp);
+                } else {
+                    float interp = math.min(1,(swing.target_com[0]-points[1][0]) / (points[2][0] - points[1][0]));
+                    swing.target_com[1] = math.lerp(points[1][1], points[2][1], interp);
                 }
             }
 
@@ -540,15 +578,9 @@ public class GibbonControl : MonoBehaviour
             swing.target_com[1] += pull_up;
             
 
-            // Figure out target hand positions
-            float next_trough_time = ((math.ceil(swing_time)-0.25f))/swing_speed_mult;
-            swing.limb_targets[next_hand] = simple_pos + simple_vel * (next_trough_time-Time.time);
-            for(int i=0; i<2; ++i){
-                swing.limb_targets[i][1] = BranchesHeight(swing.limb_targets[i][0]);
-            }
-            DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
-            DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
-        
+            //DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+            //DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+            
             if(in_air){
                 swing.arms.StartSim(step);
                 for(int i=0; i<arms.points.Count; ++i){
@@ -615,6 +647,9 @@ public class GibbonControl : MonoBehaviour
             // Use COM and hand positions to drive arm rig
             bool arms_map = true;
             if(arms_map){
+                for(int i=0; i<2; ++i){
+                    arms.points[i*2+1].old_pos = math.lerp(arms.points[i*2+1].old_pos, arms.points[i*2+1].pos - simple_vel*step, 0.75f);
+                }
                 // Move hands towards grip targets
                 arms.StartSim(step);
                 for(int j=0; j<4; ++j){
@@ -658,6 +693,7 @@ public class GibbonControl : MonoBehaviour
             walk_time += step*speed_mult;
 
             var target_com = simple_pos;
+            target_com[1] = new_pos[1];
             float crouch_amount = 1.0f-climb_amount;
             target_com[1] += math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+com_offset_amount) * math.PI * 4.0f) * math.abs(simple_vel[0]) * 0.015f / speed_mult + math.abs(simple_vel[0])*0.01f;
             
@@ -702,12 +738,14 @@ public class GibbonControl : MonoBehaviour
                     for(int i=0; i<2; ++i){
                         arms.points[i*2].pos[0] += step_sqrd * -3.0f * (math.cos((walk_time + tilt_offset) * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / speed_mult;
                     }
-                    // Move arms out to sides                    
+                    // Move arms out to sides
+                    float speed = math.abs(simple_vel[0])/max_speed;
                     for(int i=0; i<2; ++i){
-                        arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * 3.0f * (1-i*2);
+                        arms_up = math.abs(speed * (math.sin(Time.time * ((i==1)?2.5f:2.3f))*0.25f+0.75f));
+                        arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * (1.5f+speed*2.0f+arms_up*2.0f) * (1-i*2);
                         arms.points[1+i*2].pos -= step_sqrd * forward * 3.0f * arms_up;;
                         arms.points[1+i*2].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
-                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (0.9f + math.sin(arms_up * math.PI)*0.1f);
+                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (0.95f + math.sin(arms_up * math.PI)*0.05f);
                     }
 
                     arms.Constraints();
@@ -715,19 +753,31 @@ public class GibbonControl : MonoBehaviour
                 arms.EndSim();
                 for(int i=0; i<2; ++i){
                     walk.limb_targets[2+i] = simple_pos;
-                    walk.limb_targets[2+i][1] += (-math.sin(walk_time * math.PI * 2.0f + math.PI*i) + 1.0f)*0.15f * (math.pow(math.abs(simple_vel[0]) + 1.0f, 0.3f) - 1.0f);
+                    walk.limb_targets[2+i][1] += (-math.sin(walk_time * math.PI * 2.0f + math.PI*i) + 1.0f)*0.2f * (math.pow(math.abs(simple_vel[0]) + 1.0f, 0.3f) - 1.0f);
                     var left = simple_pos - new float3(0.1f,0.0f,0.0f);
                     var right = simple_pos + new float3(0.1f,0.0f,0.0f);
                     left[1] = BranchesHeight(left[0]);
                     right[1] = BranchesHeight(right[0]);
                     float3 move_dir = math.normalize(right - left);
-                    walk.limb_targets[2+i] += move_dir * (math.cos(walk_time * math.PI * 2.0f + math.PI*i))*0.2f * simple_vel[0] / speed_mult;
+                    walk.limb_targets[2+i] += (move_dir * (math.cos(walk_time * math.PI * 2.0f + math.PI*i))*0.2f - 0.03f) * simple_vel[0] / speed_mult;
                     walk.limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * 0.3f;
                 }
             }
         }
         
         {
+            var old_com = float3.zero;
+            {
+                float total_mass = 0.0f;
+                for(int i=0; i<arms.points.Count; ++i){
+                    if(arms.points[i].pinned == false){
+                        old_com += arms.points[i].pos * arms.points[i].mass;
+                        total_mass += arms.points[i].mass;
+                    }
+                }
+                old_com /= total_mass;
+            }
+
             for(int i=0; i<arms.points.Count; ++i){
                 arms.points[i].pos = math.lerp(swing.arms.points[i].pos, walk.arms.points[i].pos, climb_amount);
                 arms.points[i].pos = math.lerp(arms.points[i].pos, jump.arms.points[i].pos, in_air_amount);
@@ -737,6 +787,19 @@ public class GibbonControl : MonoBehaviour
                 limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], climb_amount);
                 limb_targets[i] = math.lerp(limb_targets[i], jump.limb_targets[i], in_air_amount);
             }
+
+            var com = float3.zero;
+            {
+                float total_mass = 0.0f;
+                for(int i=0; i<arms.points.Count; ++i){
+                    if(arms.points[i].pinned == false){
+                        com += arms.points[i].pos * arms.points[i].mass;
+                        total_mass += arms.points[i].mass;
+                    }
+                }
+                com /= total_mass;
+            }
+            //DebugDraw.Line(old_com, com, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);
         }
 
         // Move game camera to track character
