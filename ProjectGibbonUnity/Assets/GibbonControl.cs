@@ -72,6 +72,7 @@ public class GibbonControl : MonoBehaviour {
         public float3 target_com;
         public float3[] limb_targets = new float3[4];
         public Verlet.System arms = new Verlet.System();
+        public float body_compress_amount = 0.0f;
     }
     MovementSystem walk = new MovementSystem();
     MovementSystem swing = new MovementSystem();
@@ -175,8 +176,8 @@ public class GibbonControl : MonoBehaviour {
         complete.AddPoint(new float3(neck.position[0], hip.position[1], neck.position[2]), "body");
         complete.AddPoint(head.position, "head");
         complete.AddPoint(neck.position, "neck");
-        complete.AddPoint(stomach.position, "stomach");
-        complete.AddPoint(pelvis.position, "hip");
+        complete.AddPoint(stomach.position, "stomach"); // 7
+        complete.AddPoint(pelvis.position, "hip"); // 8
         complete.AddPoint(groin.position, "groin");
         complete.AddPoint(hip.position, "hip_r");
         complete.AddPoint(foot.position, "foot_r");
@@ -295,6 +296,9 @@ public class GibbonControl : MonoBehaviour {
     float in_air_amount = 0.0f;
     float3 jump_com_offset;
     float jump_time;
+    float predicted_land_time;
+    float3 predicted_land_point;
+    float3 jump_point;
 
     // Prepare to draw next frame
     void Update() {                        
@@ -323,6 +327,8 @@ public class GibbonControl : MonoBehaviour {
             com /= total_mass;
             jump_com_offset = com-simple_pos;
             jump_time = Time.time;
+            jump_point = simple_pos;
+            predicted_land_time = jump_time + 5.0f;
         }
 
         // Use "arms" rig to drive full body IK rig
@@ -351,13 +357,28 @@ public class GibbonControl : MonoBehaviour {
                 complete.points[i].pos = mid + math.mul(chest_rotation, (complete.points[i].bind_pos - bind_mid));
                 complete.points[i].pinned = true;
             }
-
             
+            complete.points[7].pinned = false;
+            complete.points[8].pinned = false;
+            var old_hip = complete.points[9].pos;
+            for(int i=7; i<=9; ++i){
+                complete.points[i].pos = math.lerp(complete.points[i].pos, complete.points[6].pos, body_compress_amount);
+            }
+            complete.points[7].pos -= forward * body_compress_amount * 0.2f;
+            complete.points[8].pos -= forward * body_compress_amount * 0.2f;
+            
+            
+            for(int i=10; i<14; ++i){
+                complete.points[i].pos += complete.points[9].pos - old_hip;
+            }
+
             for(int i=0; i<2; ++i){
                 complete.points[11+i*2].pos = limb_targets[2+i];
             }
             
-            complete.Constraints();
+            for(int i=0; i<2; ++i){
+                complete.Constraints();
+            }
         } else {
             complete.Constraints();
         }
@@ -429,12 +450,13 @@ public class GibbonControl : MonoBehaviour {
 
         branches.DrawBones(new Color(0.5f, 0.5f, 0.1f, 1.0f));
         //arms.DrawBones(Color.white);
+        //complete.DrawBones(Color.white);
 
         if(ImGui.Begin("Gibbon")){
             ImGui.Text($"horz speed: {math.abs(simple_vel[0])}");  
             ImGui.Text($"swing time: {swing_time}");  
             ImGui.SliderFloat("climb_amount", ref climb_amount, 0f, 1f);
-            ImGui.SliderFloat("com_offset_amount", ref com_offset_amount, 0f, 1f);
+            ImGui.SliderFloat("com_offset_amount", ref body_compress_amount, 0f, 1f);
             ImGui.SliderFloat("base_walk_height", ref base_walk_height, 0f, 1f);
             ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
             ImGui.SliderFloat("arms_up", ref arms_up, 0f, 1f);
@@ -457,7 +479,7 @@ public class GibbonControl : MonoBehaviour {
     }
 
     float climb_amount = 0f;
-    float com_offset_amount = 0.25f;
+    float body_compress_amount = 0.0f;
     float base_walk_height = 0.7f;
     float tilt_offset = 0.81f;
     float arms_up = 0.0f;
@@ -534,8 +556,26 @@ public class GibbonControl : MonoBehaviour {
             jump_com_offset *= 0.99f;
             simple_vel += (float3)Physics.gravity * step;
 
-            if(simple_vel[1] <= 0.0f && simple_pos[1] < BranchesHeight(simple_pos[0])){
+            var traj_vel = simple_vel;
+            var traj_pos = simple_pos;
+            for(int i=0; i<200; ++i){
+                traj_pos += traj_vel * step;
+                traj_vel += (float3)Physics.gravity * step;
+                //DebugDraw.Sphere(traj_pos, Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+                predicted_land_point = traj_pos;
+                if(traj_vel[1] <= 0.0f && traj_pos[1] < BranchesHeight(traj_pos[0])){
+                    predicted_land_time = Time.time + step * i;
+                    predicted_land_point[1] = BranchesHeight(predicted_land_point[0]);
+                    break;
+                }
+            }
+
+            var test_point = limb_targets[2] + simple_vel * step;
+            if(simple_vel[1] <= 0.0f && test_point[1] < BranchesHeight(test_point[0])){
                 in_air = false;
+                for(int i=0; i<arms.points.Count; ++i){
+                    walk.arms.points[i].pos = jump.arms.points[i].pos;
+                }
             }
         }
         if(!in_air){
@@ -669,6 +709,10 @@ public class GibbonControl : MonoBehaviour {
         
         { // jump
             jump.target_com = simple_pos + jump_com_offset;
+            
+            float dist_from_land = 1.0f - (1.0f / (1.0f + math.max(0.0f, math.min(Time.time - jump_time, predicted_land_time - Time.time)) * 4.0f));
+
+            jump.body_compress_amount = dist_from_land * 0.1f;
 
             if(!in_air){
                 jump.arms.StartSim(step);
@@ -701,12 +745,13 @@ public class GibbonControl : MonoBehaviour {
                     }
                     // Apply torque to keep torso upright and forward-facing
                     float step_sqrd = step*step;
-                    float force = 10f;
-                    arms.points[4].pos[1] -= step_sqrd * force;
-                    arms.points[0].pos[1] += step_sqrd * force * 0.5f;
-                    arms.points[2].pos[1] += step_sqrd * force * 0.5f;
-                    arms.points[0].pos[2] -= step_sqrd * simple_vel[0] * 1.0f;
-                    arms.points[2].pos[2] += step_sqrd * simple_vel[0] * 1.0f;
+                    float force = 100f;
+                    var dir = math.lerp(math.normalize(jump_point - jump.target_com), math.normalize(predicted_land_point - jump.target_com), (Time.time - jump_time) / (predicted_land_time - jump_time));
+                    arms.points[4].pos += dir * step_sqrd * force;
+                    arms.points[0].pos -= dir * step_sqrd * force * 0.5f;
+                    arms.points[2].pos -= dir * step_sqrd * force * 0.5f;
+                    arms.points[1].pos += step_sqrd * simple_vel * 1.0f;
+                    arms.points[3].pos += step_sqrd * simple_vel * 1.0f;
                     arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 1f; // Apply backwards force to maintain forwards tilt
                     arms.Constraints();
                 }
@@ -715,7 +760,7 @@ public class GibbonControl : MonoBehaviour {
                 var up = math.normalize((arms.points[0].pos+arms.points[2].pos)*0.5f-arms.points[4].pos);
                 var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
                 for(int i=0; i<2; ++i){
-                    jump.limb_targets[2+i] = arms.points[i*2].pos - up + (up * 0.5f + forward * 0.1f) * math.min(1.0f, Time.time - jump_time);
+                    jump.limb_targets[2+i] = arms.points[i*2].pos - up + (up * 0.5f + forward * 0.1f) * dist_from_land;
                 }
             }
             }
@@ -731,11 +776,12 @@ public class GibbonControl : MonoBehaviour {
                 target_skate_amount = 1.0f;
             }
             skate_amount = Mathf.MoveTowards(skate_amount, target_skate_amount, step*3.0f);
+            walk.body_compress_amount = skate_amount * 0.1f;
 
             var target_com = simple_pos;
             target_com[1] = new_pos[1];
             float crouch_amount = 1.0f-climb_amount;
-            target_com[1] += math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+com_offset_amount) * math.PI * 4.0f) * math.abs(effective_vel[0]) * 0.015f / speed_mult + math.abs(effective_vel[0])*0.01f;
+            target_com[1] += math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+0.25f) * math.PI * 4.0f) * math.abs(effective_vel[0]) * 0.015f / speed_mult + math.abs(effective_vel[0])*0.01f;
             target_com[1] = math.lerp(target_com[1], simple_pos[1] + 0.5f, skate_amount);
             
             if(in_air){
@@ -761,7 +807,7 @@ public class GibbonControl : MonoBehaviour {
                     var offset = (float3)target_com - com;
                     for(int i=0; i<arms.points.Count; ++i){
                         //if(i!=1 && i!=3){
-                            arms.points[i].pos += offset;
+                            arms.points[i].pos += offset * 0.1f;
                         //}
                     }
                     // Apply torque to keep torso upright and forward-facing
@@ -782,11 +828,11 @@ public class GibbonControl : MonoBehaviour {
                     // Move arms out to sides
                     float speed = math.abs(effective_vel[0])/max_speed;
                     for(int i=0; i<2; ++i){
-                        arms_up = math.abs(speed * (math.sin(Time.time * ((i==1)?2.5f:2.3f))*0.25f+0.75f));
+                        arms_up = math.abs(speed * (math.sin(Time.time * ((i==1)?2.5f:2.3f))*0.3f+0.7f));
                         arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * (1.5f+speed*2.0f+arms_up*2.0f) * (1-i*2);
                         arms.points[1+i*2].pos -= step_sqrd * forward * 3.0f * arms_up;;
                         arms.points[1+i*2].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
-                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (0.95f + math.sin(arms_up * math.PI)*0.05f);
+                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (math.lerp(0.95f, 0.8f, math.min(speed*0.25f, 1.0f) + math.sin(arms_up * math.PI)*0.1f));
                     }
 
                     arms.Constraints();
@@ -830,6 +876,8 @@ public class GibbonControl : MonoBehaviour {
                 limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], climb_amount);
                 limb_targets[i] = math.lerp(limb_targets[i], jump.limb_targets[i], in_air_amount);
             }
+            body_compress_amount = math.lerp(swing.body_compress_amount, walk.body_compress_amount, climb_amount);
+            body_compress_amount = math.lerp(body_compress_amount, jump.body_compress_amount, in_air_amount);
 
             var com = float3.zero;
             {
