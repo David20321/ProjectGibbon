@@ -446,6 +446,21 @@ public class GibbonControl : MonoBehaviour {
 
                 ApplyTwoBoneIK(start, end, leg_forward, leg_ik, top, bottom, complete.points, old_axis, axis);
             }
+
+            // Headlook
+            
+            // head_look_y: 50 = max look down, -70 = max look up
+            // head_look_x: -90 to 90
+            var look_target = math.normalize(bind_parts.head.transform.InverseTransformPoint(GameObject.Find("look_target").transform.position));
+            head_look_y = math.sin(look_target.x)*Mathf.Rad2Deg;
+            var temp = look_target;
+            temp.x = 0.0f;
+            temp = math.normalize(temp);
+            head_look_x = -math.sin(temp.y)*Mathf.Rad2Deg;
+            bind_parts.head.transform.rotation = bind_parts.head.transform.rotation * Quaternion.Euler(head_look_x, 0f, 0f) * Quaternion.Euler(0f, head_look_y, 0f);
+            if(head_look_y > 0.0f){
+                bind_parts.head.transform.position = bind_parts.head.transform.position + (Vector3)((bind_parts.head.transform.right) * head_look_y * -0.001f);
+            }
         }
 
         branches.DrawBones(new Color(0.5f, 0.5f, 0.1f, 1.0f));
@@ -461,6 +476,8 @@ public class GibbonControl : MonoBehaviour {
             ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
             ImGui.SliderFloat("arms_up", ref arms_up, 0f, 1f);
             ImGui.SliderFloat("start_time", ref start_time, 0f, 1f);
+            ImGui.SliderFloat("head_look_x", ref head_look_x, -90f, 90f);
+            ImGui.SliderFloat("head_look_y", ref head_look_y, -70f, 50f);
         }
         ImGui.End();
 
@@ -478,12 +495,14 @@ public class GibbonControl : MonoBehaviour {
         }
     }
 
-    float climb_amount = 0f;
+    float climb_amount = 1f;
+    float head_look_x = 0.0f;
+    float head_look_y = 0.0f;
     float body_compress_amount = 0.0f;
     float base_walk_height = 0.7f;
     float tilt_offset = 0.81f;
     float arms_up = 0.0f;
-    bool wants_to_swing = true;
+    bool wants_to_swing = false;
     float skate_amount = 0.0f;
 
     void Swap(ref float3 a, ref float3 b){
