@@ -40,7 +40,7 @@ public class Verlet {
             point.pinned = false;
             point.name = name;
             point.mass = 1.0f;
-            point.widget = GameObject.Instantiate(point_prefab_static, point.pos, Quaternion.identity).transform;
+            //point.widget = GameObject.Instantiate(point_prefab_static, point.pos, Quaternion.identity).transform;
             points.Add(point);
         }
     

@@ -81,7 +81,7 @@ namespace Wolfire {
             Dictionary<string, Entry> temp = entries;
             entries = backup_entries;
             backup_entries = temp;
-            
+            /*
                 ImGui.SetNextWindowSize(new Vector2(500, 400), ImGuiCond.FirstUseEver);
                 if(ImGui.Begin("Debug Text")) {
                     foreach (KeyValuePair<string, Entry> pair in entries) { 
@@ -91,7 +91,7 @@ namespace Wolfire {
                         }
                     }
                 }
-                ImGui.End();                
+                ImGui.End();  */              
             }
         }
     }

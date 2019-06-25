@@ -152,11 +152,8 @@ public class GibbonControl : MonoBehaviour {
             temp.AddPoint(new float3(neck.position[0], hip.position[1], neck.position[2]), "body");
             temp.points[0].mass = 2f;
             temp.points[2].mass = 2f;
-            temp.points[4].mass = 4f;
-        
-            for(int j=0; j<temp.points.Count; ++j){
-                Destroy(temp.points[j].widget.gameObject);
-            }
+            temp.points[4].mass = 4f; 
+
             temp.AddBone("arm_r", 0, 1);
             temp.bones[temp.bones.Count-1].length[1] = measured_arm_length;
             temp.bones[temp.bones.Count-1].length[0] *= 0.4f; // Allow arm to flex
@@ -315,7 +312,7 @@ public class GibbonControl : MonoBehaviour {
             }
         }
 
-        if(Input.GetKeyDown(KeyCode.Space)){
+        if(Input.GetKeyDown(KeyCode.Space) && !wants_to_swing){
             in_air = true;
             simple_vel[1] = 5.0f;
 
@@ -468,19 +465,21 @@ public class GibbonControl : MonoBehaviour {
         //arms.DrawBones(Color.white);
         //complete.DrawBones(Color.white);
 
-        if(ImGui.Begin("Gibbon")){
-            ImGui.Text($"horz speed: {math.abs(simple_vel[0])}");  
-            ImGui.Text($"swing time: {swing_time}");  
-            ImGui.SliderFloat("climb_amount", ref climb_amount, 0f, 1f);
-            ImGui.SliderFloat("com_offset_amount", ref body_compress_amount, 0f, 1f);
-            ImGui.SliderFloat("base_walk_height", ref base_walk_height, 0f, 1f);
-            ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
-            ImGui.SliderFloat("arms_up", ref arms_up, 0f, 1f);
-            ImGui.SliderFloat("start_time", ref start_time, 0f, 1f);
-            ImGui.SliderFloat("head_look_x", ref head_look_x, -90f, 90f);
-            ImGui.SliderFloat("head_look_y", ref head_look_y, -70f, 50f);
+        if(false){
+            if(ImGui.Begin("Gibbon")){
+                ImGui.Text($"horz speed: {math.abs(simple_vel[0])}");  
+                ImGui.Text($"swing time: {swing_time}");  
+                ImGui.SliderFloat("climb_amount", ref climb_amount, 0f, 1f);
+                ImGui.SliderFloat("com_offset_amount", ref body_compress_amount, 0f, 1f);
+                ImGui.SliderFloat("base_walk_height", ref base_walk_height, 0f, 1f);
+                ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
+                ImGui.SliderFloat("arms_up", ref arms_up, 0f, 1f);
+                ImGui.SliderFloat("start_time", ref start_time, 0f, 1f);
+                ImGui.SliderFloat("head_look_x", ref head_look_x, -90f, 90f);
+                ImGui.SliderFloat("head_look_y", ref head_look_y, -70f, 50f);
+            }
+            ImGui.End();
         }
-        ImGui.End();
 
         if(Input.GetKeyDown(KeyCode.Tab)){
             Time.timeScale = (Time.timeScale == 1.0f)?0.1f:1.0f;
@@ -536,10 +535,12 @@ public class GibbonControl : MonoBehaviour {
             }
         }
 
-        if(vert_input < 0f){
-            wants_to_swing = true;
-        } else if(vert_input > 0f){
-            wants_to_swing = false;
+        if(!in_air){
+            if(vert_input < 0f){
+                wants_to_swing = true;
+            } else if(vert_input > 0f){
+                wants_to_swing = false;
+            }
         }
 
         climb_amount = Mathf.MoveTowards(climb_amount, wants_to_swing?0.0f:1.0f, step * 2f);
@@ -554,7 +555,7 @@ public class GibbonControl : MonoBehaviour {
         simple_vel[0] = math.clamp(simple_vel[0], -max_speed, max_speed);
         
         if(horz_input == 0f && math.abs(simple_vel[0]) < 1.0f){
-            simple_vel[0] = Mathf.MoveTowards(simple_vel[0], 0.0f, step);
+            simple_vel[0] = Mathf.MoveTowards(simple_vel[0], simple_vel[0]>=0.0f?1.0f:-1.0f, step);
         }
 
         var test_pos = simple_pos + simple_vel * 0.1f;
@@ -572,7 +573,6 @@ public class GibbonControl : MonoBehaviour {
         var effective_vel = simple_vel * slope_speed_mult;
 
         simple_pos += effective_vel * step;
-        look_target = simple_pos + simple_vel * 10f;
         if(in_air){
             jump_com_offset *= 0.99f;
             simple_vel += (float3)Physics.gravity * step;
@@ -594,18 +594,26 @@ public class GibbonControl : MonoBehaviour {
             var test_point = limb_targets[2] + simple_vel * step;
             if(simple_vel[1] <= 0.0f && test_point[1] < BranchesHeight(test_point[0])){
                 in_air = false;
+                skate_amount = 1.0f;
                 for(int i=0; i<arms.points.Count; ++i){
                     walk.arms.points[i].pos = jump.arms.points[i].pos;
                 }
             }
+            look_target = predicted_land_point;
         }
         if(!in_air){
             simple_pos[1] = BranchesHeight(simple_pos[0]);
             simple_vel[1] = 0.0f;
+            var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+            look_target[2] += forward[2];
+            look_target = (float3)bind_parts.head.transform.position + forward * 0.1f;
+            look_target += test_pos - test_pos2;
         }
+
         in_air_amount = Mathf.MoveTowards(in_air_amount, in_air?1.0f:0.0f, 1f);// step * 10f);
 
-
+        //DebugDraw.Sphere(look_target, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+       
         /*DebugDraw.Sphere(simple_pos, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
         DebugDraw.Sphere(test_pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
         DebugDraw.Sphere(test_pos2, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
@@ -673,8 +681,8 @@ public class GibbonControl : MonoBehaviour {
             swing.target_com[1] += pull_up;
             
 
-            DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
-            DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+            //DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+            //DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
             
             if(in_air){
                 swing.arms.StartSim(step);
@@ -717,6 +725,7 @@ public class GibbonControl : MonoBehaviour {
                     arms.points[0].pos[2] -= step_sqrd * simple_vel[0] * 2.0f;
                     arms.points[2].pos[2] += step_sqrd * simple_vel[0] * 2.0f;
                     arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 2f; // Apply backwards force to maintain forwards tilt
+                    
                     arms.Constraints();
                 }
                 arms.EndSim();
@@ -747,7 +756,7 @@ public class GibbonControl : MonoBehaviour {
             bool arms_map = true;
             if(arms_map){
                 for(int i=0; i<2; ++i){
-                    arms.points[i*2+1].old_pos = math.lerp(arms.points[i*2+1].old_pos, arms.points[i*2+1].pos - simple_vel*step, 0.75f);
+                    //arms.points[i*2+1].old_pos = math.lerp(arms.points[i*2+1].old_pos, arms.points[i*2+1].pos - simple_vel*step, 0.75f);
                 }
                 // Move hands towards grip targets
                 arms.StartSim(step);
@@ -766,14 +775,19 @@ public class GibbonControl : MonoBehaviour {
                     }
                     // Apply torque to keep torso upright and forward-facing
                     float step_sqrd = step*step;
-                    float force = 100f;
+                    float force = 50f;
                     var dir = math.lerp(math.normalize(jump_point - jump.target_com), math.normalize(predicted_land_point - jump.target_com), (Time.time - jump_time) / (predicted_land_time - jump_time));
                     arms.points[4].pos += dir * step_sqrd * force;
                     arms.points[0].pos -= dir * step_sqrd * force * 0.5f;
                     arms.points[2].pos -= dir * step_sqrd * force * 0.5f;
-                    arms.points[1].pos += step_sqrd * simple_vel * 1.0f;
-                    arms.points[3].pos += step_sqrd * simple_vel * 1.0f;
+                    arms.points[0].pos[2] -= step_sqrd * simple_vel[0] * 1.0f;
+                    arms.points[2].pos[2] += step_sqrd * simple_vel[0] * 1.0f;
                     arms.points[4].pos[0] -= simple_vel[0] * step_sqrd * 1f; // Apply backwards force to maintain forwards tilt
+                                        
+                    for(int i=0; i<2; ++i){
+                        arms.bones[i].length[1] = arms.bones[i].length[0] / 0.4f * 0.8f;
+                    }
+
                     arms.Constraints();
                 }
                 arms.EndSim();
@@ -783,6 +797,7 @@ public class GibbonControl : MonoBehaviour {
                 for(int i=0; i<2; ++i){
                     jump.limb_targets[2+i] = arms.points[i*2].pos - up + (up * 0.5f + forward * 0.1f) * dist_from_land;
                 }
+
             }
             }
         }
@@ -855,8 +870,14 @@ public class GibbonControl : MonoBehaviour {
                         arms.points[1+i*2].pos[1] -= step_sqrd * 10.0f * (1.0f - arms_up);
                         arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (math.lerp(0.95f, 0.8f, math.min(speed*0.25f, 1.0f) + math.sin(arms_up * math.PI)*0.1f));
                     }
+                    if(climb_amount < 1.0f && !wants_to_swing){
+                        arms.points[1].pos = math.lerp(arms.points[1].pos, swing.arms.points[1].pos, (1.0f - climb_amount)*0.5f);
+                        arms.points[3].pos = math.lerp(arms.points[3].pos, swing.arms.points[3].pos, (1.0f - climb_amount)*0.5f);
+                    }
 
-                    arms.Constraints();
+                    for(int i=0; i<2; ++i){
+                        arms.Constraints();
+                    }
                 }
                 arms.EndSim();
                 for(int i=0; i<2; ++i){
