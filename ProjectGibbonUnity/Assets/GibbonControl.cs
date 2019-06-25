@@ -499,14 +499,13 @@ public class GibbonControl : MonoBehaviour {
 
         climb_amount = Mathf.MoveTowards(climb_amount, wants_to_swing?0.0f:1.0f, step * 2f);
 
-        float max_speed = 10f;
-        if(!in_air && climb_amount > 0.5f){
-            max_speed = 7f;
-        }
+        float max_speed = 10f - climb_amount*3.0f;
 
         // Simple velocity control
         var old_pos = simple_pos;
-        simple_vel[0] += horz_input * step * 5f;
+        if(!in_air){
+            simple_vel[0] += horz_input * step * 5f;
+        }
         simple_vel[0] = math.clamp(simple_vel[0], -max_speed, max_speed);
         
         if(horz_input == 0f && math.abs(simple_vel[0]) < 1.0f){
@@ -521,7 +520,7 @@ public class GibbonControl : MonoBehaviour {
 
         var slope_vec = math.normalizesafe(test_pos - simple_pos);
         float slope_speed_mult = math.abs(slope_vec[0]);
-        if(climb_amount < 0.5f){
+        if(climb_amount < 0.5f || in_air){
             slope_speed_mult = 1.0f;
         }
 
