@@ -299,6 +299,7 @@ public class GibbonControl : MonoBehaviour {
     float predicted_land_time;
     float3 predicted_land_point;
     float3 jump_point;
+    float3 look_target;
 
     // Prepare to draw next frame
     void Update() {                        
@@ -451,9 +452,9 @@ public class GibbonControl : MonoBehaviour {
             
             // head_look_y: 50 = max look down, -70 = max look up
             // head_look_x: -90 to 90
-            var look_target = math.normalize(bind_parts.head.transform.InverseTransformPoint(GameObject.Find("look_target").transform.position));
-            head_look_y = math.sin(look_target.x)*Mathf.Rad2Deg;
-            var temp = look_target;
+            var target = math.normalize(bind_parts.head.transform.InverseTransformPoint(look_target));
+            head_look_y = math.sin(target.x)*Mathf.Rad2Deg;
+            var temp = target;
             temp.x = 0.0f;
             temp = math.normalize(temp);
             head_look_x = -math.sin(temp.y)*Mathf.Rad2Deg;
@@ -571,6 +572,7 @@ public class GibbonControl : MonoBehaviour {
         var effective_vel = simple_vel * slope_speed_mult;
 
         simple_pos += effective_vel * step;
+        look_target = simple_pos + simple_vel * 10f;
         if(in_air){
             jump_com_offset *= 0.99f;
             simple_vel += (float3)Physics.gravity * step;
