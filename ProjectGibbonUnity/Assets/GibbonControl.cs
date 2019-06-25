@@ -508,6 +508,10 @@ public class GibbonControl : MonoBehaviour {
         simple_vel[0] += horz_input * step * 5f;
         simple_vel[0] = math.clamp(simple_vel[0], -max_speed, max_speed);
         
+        if(horz_input == 0f && math.abs(simple_vel[0]) < 1.0f){
+            simple_vel[0] = Mathf.MoveTowards(simple_vel[0], 0.0f, step);
+        }
+
         var test_pos = simple_pos + simple_vel * 0.1f;
         test_pos[1] = BranchesHeight(test_pos[0]);
         var test_pos2 = simple_pos + simple_vel * -0.1f;
