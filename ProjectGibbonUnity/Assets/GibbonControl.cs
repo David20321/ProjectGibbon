@@ -14,7 +14,6 @@ public class GibbonControl : MonoBehaviour {
     // Current target position for each hand
     float3[] limb_targets;
     int next_hand = 1; // Which hand to grip with next
-    float3 locked_handhold;
     
     // Bind poses for each skinned bone
     class BindPart {
@@ -549,6 +548,11 @@ public class GibbonControl : MonoBehaviour {
         DebugDraw.Line(old_test_pos, new_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);*/
         old_test_pos = new_pos;
         
+        if(Input.GetKey(KeyCode.J)){
+            swing_time = 0.0f;
+            next_hand = 1;
+        }
+
         { // swing
             // Adjust amplitude and time scale based on speed
             float amplitude = math.pow(math.abs(simple_vel[0])/10f + 1f, 0.8f)-1f+0.1f;
@@ -557,13 +561,12 @@ public class GibbonControl : MonoBehaviour {
             float swing_speed_mult = 8f/(math.PI*2f);
             swing_time += step*swing_speed_mult;
             if(math.ceil(old_swing_time) != math.ceil(swing_time)){
-                locked_handhold = limb_targets[next_hand];
                 next_hand = 1-next_hand;
             }
                         
             // Figure out target hand positions
-            float next_trough_time = ((math.ceil(swing_time)-0.25f))/swing_speed_mult;
-            swing.limb_targets[next_hand] = simple_pos + simple_vel * (next_trough_time-Time.time);
+            float next_trough_time = ((math.ceil(swing_time)-0.25f));
+            swing.limb_targets[next_hand] = simple_pos + simple_vel * (next_trough_time-swing_time)/swing_speed_mult;
             for(int i=0; i<2; ++i){
                 swing.limb_targets[i][1] = BranchesHeight(swing.limb_targets[i][0]);
             }
@@ -608,8 +611,8 @@ public class GibbonControl : MonoBehaviour {
             swing.target_com[1] += pull_up;
             
 
-            //DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
-            //DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+            DebugDraw.Sphere(swing.limb_targets[0], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
+            DebugDraw.Sphere(swing.limb_targets[1], Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray );
             
             if(in_air){
                 swing.arms.StartSim(step);
