@@ -13,7 +13,6 @@ public class GibbonControl : MonoBehaviour {
     
     // Current target position for each hand
     float3[] limb_targets;
-    int next_hand = 1; // Which hand to grip with next
     
     // Bind poses for each skinned bone
     class BindPart {
@@ -439,6 +438,7 @@ public class GibbonControl : MonoBehaviour {
             ImGui.SliderFloat("base_walk_height", ref base_walk_height, 0f, 1f);
             ImGui.SliderFloat("tilt_offset", ref tilt_offset, 0f, 1f);
             ImGui.SliderFloat("arms_up", ref arms_up, 0f, 1f);
+            ImGui.SliderFloat("start_time", ref start_time, 0f, 1f);
         }
         ImGui.End();
 
@@ -471,6 +471,7 @@ public class GibbonControl : MonoBehaviour {
     }
     
     float3 old_test_pos;
+    float start_time = 0.0f;
 
     // Apply actual controls and physics
     void Step(float step) {
@@ -488,6 +489,9 @@ public class GibbonControl : MonoBehaviour {
         }
         if(Input.GetKey(KeyCode.S)){
             vert_input = -1f;
+            if(climb_amount == 1.0f){
+                swing_time = start_time;
+            }
         }
 
         if(vert_input < 0f){
@@ -549,8 +553,7 @@ public class GibbonControl : MonoBehaviour {
         old_test_pos = new_pos;
         
         if(Input.GetKey(KeyCode.J)){
-            swing_time = 0.0f;
-            next_hand = 1;
+            swing_time = 0.6f;
         }
 
         { // swing
@@ -560,9 +563,7 @@ public class GibbonControl : MonoBehaviour {
             var old_swing_time = swing_time;
             float swing_speed_mult = 8f/(math.PI*2f);
             swing_time += step*swing_speed_mult;
-            if(math.ceil(old_swing_time) != math.ceil(swing_time)){
-                next_hand = 1-next_hand;
-            }
+            var next_hand = ((int)swing_time)%2;
                         
             // Figure out target hand positions
             float next_trough_time = ((math.ceil(swing_time)-0.25f));
