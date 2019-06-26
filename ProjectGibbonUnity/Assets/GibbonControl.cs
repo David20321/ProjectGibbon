@@ -479,7 +479,13 @@ public class GibbonControl : MonoBehaviour {
                 ImGui.SliderFloat("forward_amount", ref forward_amount, -1f, 1f);
                 ImGui.SliderFloat("up_amount", ref up_amount, -1f, 1f);
                 ImGui.SliderFloat("gallop_offset", ref gallop_offset, -1f, 1f);
-                ImGui.SliderFloat("gallop_stride", ref gallop_stride, 0f, 1f);
+                ImGui.SliderFloat("gallop_stride", ref gallop_stride, 0f, 0.85f);
+                ImGui.SliderFloat("gallop_height_offset", ref gallop_height_offset, 0f, 1f);
+                ImGui.SliderFloat("gallop_height", ref gallop_height, 0f, 1f);
+                ImGui.SliderFloat("gallop_height_base", ref gallop_height_base, 0f, 1f);
+                ImGui.SliderFloat("gallop_hip_rotate", ref gallop_hip_rotate, -4f, 4f);
+                ImGui.SliderFloat("gallop_lean", ref gallop_lean, -1f, 1f);
+                ImGui.SliderFloat("gallop_stride_height", ref gallop_stride_height, -1f, 1f);
             }
             ImGui.End();
         }
@@ -507,8 +513,14 @@ public class GibbonControl : MonoBehaviour {
     float arms_up = 0.0f;
     bool wants_to_swing = false;
     float skate_amount = 0.0f;
-    float gallop_offset = 0.551f;
-    float gallop_stride = 0.7f;
+    float gallop_offset = 0.55f;
+    float gallop_stride = 1.0f;
+    float gallop_stride_height = 0.2f;
+    float gallop_hip_rotate = -1.3f;
+    float gallop_height_offset = 0.6f;
+    float gallop_height = 0.12f;
+    float gallop_height_base = 0.8f;
+    float gallop_lean = 0.6f;
 
     void Swap(ref float3 a, ref float3 b){
         var temp = a;
@@ -875,7 +887,7 @@ public class GibbonControl : MonoBehaviour {
                         arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * (1.5f+speed*2.0f+arms_up*2.0f) * (1-i*2) * 2f;
                         //arms.points[1+i*2].pos -= step_sqrd * forward * 6.0f * arms_up;;
                         arms.points[1+i*2].pos[1] += step_sqrd * 10.0f * arms_up  * arms_up;
-                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (math.lerp(0.95f, 0.8f, math.min(speed*0.25f, 1.0f) + math.sin(arms_up * math.PI)*0.1f));
+                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * 1.0f;
                     }
                     for(int i=0; i<2; ++i){
                         var side_dir = math.normalize(arms.points[0].pos - arms.points[2].pos) * (1-i*2);
@@ -910,9 +922,9 @@ public class GibbonControl : MonoBehaviour {
                 }
             }
         } else { // gallop
-        float speed_mult = 8f/(math.PI*2f) * math.pow((math.abs(effective_vel[0])+1.0f),0.4f);
+            float speed_mult = 8f/(math.PI*2f) * math.pow((math.abs(effective_vel[0])+1.0f),0.4f);
             walk_time += step*speed_mult;
-            lean = 0.2f;
+            lean = math.sin(Time.time)*0.2f+0.8f;
             
             float target_skate_amount = 0.0f;
             if(slope_vec[1] < -0.5f && math.abs(effective_vel[0]) > 3.0f){
@@ -924,7 +936,7 @@ public class GibbonControl : MonoBehaviour {
             var target_com = simple_pos;
             target_com[1] = new_pos[1];
             float crouch_amount = 1.0f-climb_amount;
-            target_com[1] += math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+0.25f) * math.PI * 2.0f) * math.abs(effective_vel[0]) * 0.015f / speed_mult + math.abs(effective_vel[0])*0.01f;
+            target_com[1] += math.sin((walk_time + gallop_height_offset) * math.PI * 2.0f) * gallop_height + gallop_height_base;
             target_com[1] = math.lerp(target_com[1], simple_pos[1] + 0.5f, skate_amount);
             target_com[1] = math.lerp(target_com[1], simple_pos[1], math.abs(lean)*0.15f);
             
@@ -967,12 +979,12 @@ public class GibbonControl : MonoBehaviour {
                     arms.points[2].pos[2] += step_sqrd * effective_vel[0] * 2.0f * (1.0f - skate_amount);
                     
                     for(int i=0; i<2; ++i){
-                        arms.points[i*2].pos[0] += step_sqrd * -3.0f * (math.cos((walk_time + tilt_offset) * math.PI * 2.0f + math.PI*i))*0.2f * effective_vel[0] / speed_mult;
+                        arms.points[i*2].pos[0] += step_sqrd * -3.0f * (math.cos(math.PI*i))*gallop_hip_rotate * effective_vel[0] / speed_mult;
                     }
                     // Move arms out to sides
                     float speed = math.abs(effective_vel[0])/max_speed;
                     for(int i=0; i<2; ++i){
-                        arms_up = math.abs(speed * (math.sin(Time.time * ((i==1)?2.5f:2.3f))*0.3f+0.7f));
+                        arms_up = 0.0f;// math.abs(speed * (math.sin(Time.time * ((i==1)?2.5f:2.3f))*0.3f+0.7f));
                         arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * (1.5f+speed*2.0f+arms_up*2.0f) * (1-i*2) * 2f;
                         //arms.points[1+i*2].pos -= step_sqrd * forward * 6.0f * arms_up;;
                         arms.points[1+i*2].pos[1] += step_sqrd * 10.0f * arms_up  * arms_up;
@@ -1008,7 +1020,7 @@ public class GibbonControl : MonoBehaviour {
                     walk.limb_targets[2+i] += (move_dir * (math.cos(time_val))*0.2f - 0.03f) * effective_vel[0] / speed_mult  * (1.0f - skate_amount) * gallop_stride;
                     walk.limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * (0.3f+0.3f*skate_amount);
                     walk.limb_targets[2+i][1] = BranchesHeight(walk.limb_targets[2+i][0]); 
-                    walk.limb_targets[2+i][1] += (-math.sin(time_val) + 1.0f)*0.2f * (math.pow(math.abs(effective_vel[0]) + 1.0f, 0.3f) - 1.0f) * (1.0f - skate_amount);
+                    walk.limb_targets[2+i][1] += (-math.sin(time_val) + 1.0f)*gallop_stride_height * (math.pow(math.abs(effective_vel[0]) + 1.0f, 0.3f) - 1.0f) * (1.0f - skate_amount);
                 }
             }
         }
