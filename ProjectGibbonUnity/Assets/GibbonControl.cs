@@ -316,9 +316,12 @@ public class GibbonControl : MonoBehaviour {
             }
         }
 
-        if(Input.GetKeyDown(KeyCode.Space) && !wants_to_swing){
-            in_air = true;
+        if(Input.GetKeyDown(KeyCode.Space)){
             simple_vel[1] = 5.0f;
+            if(!in_air && climb_amount == 0.0f){
+                simple_vel[1] += 2.0f;                
+            }
+            in_air = true;
 
             float total_mass = 0f;
             var com = float3.zero;
@@ -329,7 +332,7 @@ public class GibbonControl : MonoBehaviour {
             com /= total_mass;
             jump_com_offset = com-simple_pos;
             jump_time = Time.time;
-            jump_point = simple_pos;
+            jump_point = (limb_targets[2]+limb_targets[3])*0.5f;
             predicted_land_time = jump_time + 5.0f;
         }
 
@@ -473,7 +476,7 @@ public class GibbonControl : MonoBehaviour {
         //arms.DrawBones(Color.white);
         //complete.DrawBones(Color.white);
 
-        if(true){
+        if(false){
             if(ImGui.Begin("Gibbon")){
                 ImGui.SliderFloat("lean", ref lean, -1f, 1f);
                 ImGui.SliderFloat("forward_amount", ref forward_amount, -1f, 1f);
@@ -647,8 +650,8 @@ public class GibbonControl : MonoBehaviour {
 
         //DebugDraw.Sphere(look_target, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
        
-        /*DebugDraw.Sphere(simple_pos, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
-        DebugDraw.Sphere(test_pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        //DebugDraw.Sphere(simple_pos, Color.yellow, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
+        /*DebugDraw.Sphere(test_pos, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
         DebugDraw.Sphere(test_pos2, Color.blue, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
         DebugDraw.Sphere((test_pos+test_pos2)*0.5f, Color.green, Vector3.one * 0.2f, Quaternion.identity, DebugDraw.Lifetime.OneFixedUpdate, DebugDraw.Type.Xray);
         DebugDraw.Line(old_test_pos, new_pos, Color.green, DebugDraw.Lifetime.Persistent, DebugDraw.Type.Xray);*/
@@ -1021,6 +1024,18 @@ public class GibbonControl : MonoBehaviour {
         // Move game camera to track character
         var cam_pos = Camera.main.transform.position;
         cam_pos[0] = simple_pos[0];
+        
+        {
+            float total_mass = 0.0f;
+            var com = new float3(0.0f, 0.0f, 0.0f);
+            for(int i=0; i<arms.points.Count; ++i){
+                com += arms.points[i].pos * arms.points[i].mass;
+                total_mass += arms.points[i].mass;
+            }
+            com /= total_mass;
+            cam_pos[0] = com[0] + simple_vel[0] * 0.1f;
+        }
+
         Camera.main.transform.position = cam_pos;
     }
 
