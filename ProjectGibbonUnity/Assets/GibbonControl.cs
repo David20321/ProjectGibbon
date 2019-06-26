@@ -834,6 +834,9 @@ public class GibbonControl : MonoBehaviour {
 
         bool calc_walk = true;
         if(calc_walk){
+            gallop_amount = math.clamp(math.abs(simple_vel[0]) / 4f + (math.sin(Time.time*0.7f)-1.0f) * 0.7f, 0.0f, 1.0f);
+            quad_amount = math.clamp((math.sin(Time.time*2.3f)+math.sin(Time.time*1.7f)), 0.0f, 1.0f);
+
             var walk_lean = math.sin(Time.time)*0.2f+0.3f;
             var gallop_lean = math.sin(Time.time)*0.2f+0.8f + quad_amount * 0.07f * math.abs(effective_vel[0]);
             lean = math.lerp(walk_lean, gallop_lean, gallop_amount);
