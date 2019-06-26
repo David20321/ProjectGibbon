@@ -846,7 +846,7 @@ public class GibbonControl : MonoBehaviour {
                     var offset = (float3)target_com - com;
                     for(int i=0; i<arms.points.Count; ++i){
                         if(i!=1 && i!=3){
-                            arms.points[i].pos += offset;// * 0.4f;
+                            arms.points[i].pos += offset * 0.2f;
                         }
                     }
                     // Apply torque to keep torso upright and forward-facing
@@ -882,8 +882,8 @@ public class GibbonControl : MonoBehaviour {
                     }
 
                     if(climb_amount < 1.0f && !wants_to_swing){
-                        arms.points[1].pos = math.lerp(arms.points[1].pos, swing.arms.points[1].pos, (1.0f - climb_amount)*0.5f);
-                        arms.points[3].pos = math.lerp(arms.points[3].pos, swing.arms.points[3].pos, (1.0f - climb_amount)*0.5f);
+                        arms.points[1].pos = math.lerp(arms.points[1].pos, swing.arms.points[1].pos, (1.0f - climb_amount)*0.2f);
+                        arms.points[3].pos = math.lerp(arms.points[3].pos, swing.arms.points[3].pos, (1.0f - climb_amount)*0.2f);
                     }
 
                     for(int i=0; i<2; ++i){
