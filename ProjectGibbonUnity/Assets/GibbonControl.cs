@@ -849,7 +849,8 @@ public class GibbonControl : MonoBehaviour {
                 target_skate_amount = 1.0f;
             }
             skate_amount = Mathf.MoveTowards(skate_amount, target_skate_amount, step*3.0f);
-            
+            quad_amount = math.lerp(quad_amount,0.0f,skate_amount);
+
             walk.body_compress_amount = math.lerp((math.sin((walk_time+quad_gallop_body_compress_offset) * math.PI * 2.0f)+1.0f)*quad_gallop_body_compress_amount*quad_amount*gallop_amount,
                                                   0.1f,
                                                   skate_amount);
