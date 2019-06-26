@@ -416,7 +416,7 @@ public class GibbonControl : MonoBehaviour {
                 forward_amount = -climb_amount * 0.8f;
                 up_amount = 0.1f + climb_amount * 0.5f;
                 var elbow_point = ((points[2].pos + points[0].pos) * 0.5f + up * up_amount + forward * forward_amount);
-                DebugDraw.Sphere(elbow_point, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+                //DebugDraw.Sphere(elbow_point, Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
                 var old_axis = math.normalize(math.cross((points[end].bind_pos+points[start].bind_pos)*0.5f - ((points[2].bind_pos + points[0].bind_pos) * 0.5f + bind_up * up_amount + bind_forward * forward_amount), points[start].bind_pos - points[end].bind_pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
                 var axis = math.normalize(math.cross((points[end].pos+points[start].pos)*0.5f - elbow_point, points[start].pos - points[end].pos));//shoulder_rotation * Vector3.forward;// math.normalize(shoulder_rotation * math.cross(left_arm.points[2] - left_arm.points[1], left_arm.points[1] - left_arm.points[0]));
             
@@ -478,6 +478,8 @@ public class GibbonControl : MonoBehaviour {
                 ImGui.SliderFloat("lean", ref lean, -1f, 1f);
                 ImGui.SliderFloat("forward_amount", ref forward_amount, -1f, 1f);
                 ImGui.SliderFloat("up_amount", ref up_amount, -1f, 1f);
+                ImGui.SliderFloat("gallop_offset", ref gallop_offset, -1f, 1f);
+                ImGui.SliderFloat("gallop_stride", ref gallop_stride, 0f, 1f);
             }
             ImGui.End();
         }
@@ -505,6 +507,8 @@ public class GibbonControl : MonoBehaviour {
     float arms_up = 0.0f;
     bool wants_to_swing = false;
     float skate_amount = 0.0f;
+    float gallop_offset = 0.551f;
+    float gallop_stride = 0.7f;
 
     void Swap(ref float3 a, ref float3 b){
         var temp = a;
@@ -803,8 +807,9 @@ public class GibbonControl : MonoBehaviour {
             }
         }
 
-        bool calc_walk = true;
+        bool calc_walk = false;
         if(calc_walk){
+            lean = math.sin(Time.time)*0.2f+0.3f;
             float speed_mult = 8f/(math.PI*2f) * math.pow((math.abs(effective_vel[0])+1.0f),0.4f);
             walk_time += step*speed_mult;
             
@@ -830,7 +835,6 @@ public class GibbonControl : MonoBehaviour {
                 walk.arms.EndSim();
             } else {
                 var arms = walk.arms;
-                lean = math.sin(Time.time)*0.2f+0.3f;
                 arms.StartSim(step);
                 for(int j=0; j<4; ++j){
                     // Adjust all free points to match target COM
@@ -903,6 +907,108 @@ public class GibbonControl : MonoBehaviour {
                     walk.limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * (0.3f+0.3f*skate_amount);
                     walk.limb_targets[2+i][1] = BranchesHeight(walk.limb_targets[2+i][0]); 
                     walk.limb_targets[2+i][1] += (-math.sin(walk_time * math.PI * 2.0f + math.PI*i) + 1.0f)*0.2f * (math.pow(math.abs(effective_vel[0]) + 1.0f, 0.3f) - 1.0f) * (1.0f - skate_amount);
+                }
+            }
+        } else { // gallop
+        float speed_mult = 8f/(math.PI*2f) * math.pow((math.abs(effective_vel[0])+1.0f),0.4f);
+            walk_time += step*speed_mult;
+            lean = 0.2f;
+            
+            float target_skate_amount = 0.0f;
+            if(slope_vec[1] < -0.5f && math.abs(effective_vel[0]) > 3.0f){
+                target_skate_amount = 1.0f;
+            }
+            skate_amount = Mathf.MoveTowards(skate_amount, target_skate_amount, step*3.0f);
+            walk.body_compress_amount = skate_amount * 0.1f;
+
+            var target_com = simple_pos;
+            target_com[1] = new_pos[1];
+            float crouch_amount = 1.0f-climb_amount;
+            target_com[1] += math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+0.25f) * math.PI * 2.0f) * math.abs(effective_vel[0]) * 0.015f / speed_mult + math.abs(effective_vel[0])*0.01f;
+            target_com[1] = math.lerp(target_com[1], simple_pos[1] + 0.5f, skate_amount);
+            target_com[1] = math.lerp(target_com[1], simple_pos[1], math.abs(lean)*0.15f);
+            
+            if(in_air){
+                walk.arms.StartSim(step);
+                for(int i=0; i<arms.points.Count; ++i){
+                    walk.arms.points[i].pos = arms.points[i].pos;
+                }
+                walk.arms.EndSim();
+            } else {
+                var arms = walk.arms;
+                arms.StartSim(step);
+                for(int j=0; j<4; ++j){
+                    // Adjust all free points to match target COM
+                    float total_mass = 0f;
+                    var com = float3.zero;
+                    for(int i=0; i<arms.points.Count; ++i){
+                        if(i!=1 && i!=3){
+                            com += arms.points[i].pos * arms.points[i].mass;
+                            total_mass += arms.points[i].mass;
+                        }
+                    }
+                    com /= total_mass;
+                    var offset = (float3)target_com - com;
+                    for(int i=0; i<arms.points.Count; ++i){
+                        if(i!=1 && i!=3){
+                            arms.points[i].pos += offset * 0.2f;
+                        }
+                    }
+                    // Apply torque to keep torso upright and forward-facing
+                    float step_sqrd = step*step;
+                    float force = 20f;
+                    var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+                    var flat_forward = math.normalize(new float3(forward[0],0,forward[2]));
+                    float3 top_force = (lean*flat_forward + new float3(0,1,0)) * force;
+                    arms.points[4].pos += step_sqrd * -top_force;
+                    arms.points[0].pos += step_sqrd * top_force * 0.5f;
+                    arms.points[2].pos += step_sqrd * top_force * 0.5f;
+                    arms.points[0].pos[2] -= step_sqrd * effective_vel[0] * 2.0f * (1.0f - skate_amount);
+                    arms.points[2].pos[2] += step_sqrd * effective_vel[0] * 2.0f * (1.0f - skate_amount);
+                    
+                    for(int i=0; i<2; ++i){
+                        arms.points[i*2].pos[0] += step_sqrd * -3.0f * (math.cos((walk_time + tilt_offset) * math.PI * 2.0f + math.PI*i))*0.2f * effective_vel[0] / speed_mult;
+                    }
+                    // Move arms out to sides
+                    float speed = math.abs(effective_vel[0])/max_speed;
+                    for(int i=0; i<2; ++i){
+                        arms_up = math.abs(speed * (math.sin(Time.time * ((i==1)?2.5f:2.3f))*0.3f+0.7f));
+                        arms.points[1+i*2].pos += step_sqrd * (arms.points[0].pos - arms.points[2].pos) * (1.5f+speed*2.0f+arms_up*2.0f) * (1-i*2) * 2f;
+                        //arms.points[1+i*2].pos -= step_sqrd * forward * 6.0f * arms_up;;
+                        arms.points[1+i*2].pos[1] += step_sqrd * 10.0f * arms_up  * arms_up;
+                        arms.bones[i].length[1] = arms.bones[0].length[0] / 0.4f * (math.lerp(0.95f, 0.8f, math.min(speed*0.25f, 1.0f) + math.sin(arms_up * math.PI)*0.1f));
+                    }
+                    for(int i=0; i<2; ++i){
+                        var side_dir = math.normalize(arms.points[0].pos - arms.points[2].pos) * (1-i*2);
+                        float shoulder_d = math.dot(arms.points[i*2].pos, side_dir);
+                        float hand_d = math.dot(arms.points[i*2+1].pos, side_dir);
+                        float new_d = math.max(hand_d, shoulder_d);
+                        arms.points[i*2+1].pos += (new_d - hand_d) * side_dir;
+                    }
+
+                    if(climb_amount < 1.0f && !wants_to_swing){
+                        arms.points[1].pos = math.lerp(arms.points[1].pos, swing.arms.points[1].pos, (1.0f - climb_amount)*0.2f);
+                        arms.points[3].pos = math.lerp(arms.points[3].pos, swing.arms.points[3].pos, (1.0f - climb_amount)*0.2f);
+                    }
+
+                    for(int i=0; i<2; ++i){
+                        arms.Constraints();
+                    }
+                }
+                arms.EndSim();
+                for(int i=0; i<2; ++i){
+                    walk.limb_targets[2+i] = simple_pos;
+                    var left = simple_pos - new float3(0.1f,0.0f,0.0f);
+                    var right = simple_pos + new float3(0.1f,0.0f,0.0f);
+                    left[1] = BranchesHeight(left[0]);
+                    right[1] = BranchesHeight(right[0]);
+                    float3 move_dir = math.normalize(right - left);
+                    walk.limb_targets[2+i] = simple_pos;
+                    float time_val = walk_time * math.PI * 2.0f + math.PI*i*gallop_offset;
+                    walk.limb_targets[2+i] += (move_dir * (math.cos(time_val))*0.2f - 0.03f) * effective_vel[0] / speed_mult  * (1.0f - skate_amount) * gallop_stride;
+                    walk.limb_targets[2+i] += (arms.points[0].pos - arms.points[2].pos) * (1.0f-2.0f*i) * (0.3f+0.3f*skate_amount);
+                    walk.limb_targets[2+i][1] = BranchesHeight(walk.limb_targets[2+i][0]); 
+                    walk.limb_targets[2+i][1] += (-math.sin(time_val) + 1.0f)*0.2f * (math.pow(math.abs(effective_vel[0]) + 1.0f, 0.3f) - 1.0f) * (1.0f - skate_amount);
                 }
             }
         }
