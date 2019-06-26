@@ -625,6 +625,9 @@ public class GibbonControl : MonoBehaviour {
             if(simple_vel[1] <= 0.0f && test_point[1] < BranchesHeight(test_point[0])){
                 in_air = false;
                 skate_amount = 1.0f;
+                wants_to_swing = true;
+                climb_amount = 1.0f;
+                swing_time = 0.0f;
                 for(int i=0; i<arms.points.Count; ++i){
                     walk.arms.points[i].pos = jump.arms.points[i].pos;
                 }
