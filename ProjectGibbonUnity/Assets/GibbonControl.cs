@@ -10,61 +10,50 @@ namespace Wolfire {
 public class GibbonControl : MonoBehaviour {
     public GameObject display_gibbon; // Character mesh and bone transforms
     public GameObject point_prefab; // Widget for manipulating point positions
-    
-    // Current target position for each hand
-    float3[] limb_targets;
-    
-    // Bind poses for each skinned bone
-    class BindPart {
+        
+    // Skinning data
+    class DisplayBone {
         public Transform transform;
-        public float4x4 bind_mat;
         public quaternion bind_rot;
         public float3 bind_pos;
-    }
 
-    void SetBindPart(BindPart part, Transform transform){
-        part.transform = transform;
-        part.bind_mat = transform.localToWorldMatrix;
-        part.bind_pos = transform.position;
-        part.bind_rot = transform.rotation;
-    }
-
-    class BindParts {
-        public BindPart chest = new BindPart();
-        public BindPart arm_top_l = new BindPart();
-        public BindPart arm_bottom_l = new BindPart();
-        public BindPart arm_top_r = new BindPart();
-        public BindPart arm_bottom_r = new BindPart();
-        public BindPart head = new BindPart();
-        public BindPart belly = new BindPart();
-        public BindPart pelvis = new BindPart();
-        public BindPart leg_top_l = new BindPart();
-        public BindPart leg_bottom_l = new BindPart();
-        public BindPart leg_top_r = new BindPart();
-        public BindPart leg_bottom_r = new BindPart();
-    }
-
-    BindParts bind_parts = new BindParts();
-    
-    // Particle simulation systems
-    Verlet.System arms =     new Verlet.System();
-    Verlet.System complete = new Verlet.System();
-    Verlet.System branches = new Verlet.System();
-
-    // IK helper
-    class TwoBoneIK {
-        public float3[] points;
-        public TwoBoneIK() {
-            points = new float3[3];
+        public void Bind(Transform transform){
+            this.transform = transform;
+            bind_pos = transform.position;
+            bind_rot = transform.rotation;
         }
     }
 
-    TwoBoneIK arm_ik = new TwoBoneIK();
-    TwoBoneIK leg_ik = new TwoBoneIK();
+    class DisplayBody {
+        public DisplayBone chest = new DisplayBone();
+        public DisplayBone arm_top_l = new DisplayBone();
+        public DisplayBone arm_bottom_l = new DisplayBone();
+        public DisplayBone arm_top_r = new DisplayBone();
+        public DisplayBone arm_bottom_r = new DisplayBone();
+        public DisplayBone head = new DisplayBone();
+        public DisplayBone belly = new DisplayBone();
+        public DisplayBone pelvis = new DisplayBone();
+        public DisplayBone leg_top_l = new DisplayBone();
+        public DisplayBone leg_bottom_l = new DisplayBone();
+        public DisplayBone leg_top_r = new DisplayBone();
+        public DisplayBone leg_bottom_r = new DisplayBone();
+    }
+
+    DisplayBody display_body = new DisplayBody();
+    
+    // Particle simulation systems
+    Verlet.System complete = new Verlet.System();
+    Verlet.System branches = new Verlet.System();
+
+    // Initial point positions for IK
+    float3[] arm_ik = new float3[3];
+    float3[] leg_ik = new float3[3];
 
     // Simple character particle information
     float3 simple_pos;
     float3 simple_vel = float3.zero;
+
+    // Position in animation sequences
     float swing_time = 0f;
     float walk_time = 0f;
 
@@ -74,9 +63,11 @@ public class GibbonControl : MonoBehaviour {
         public Verlet.System arms = new Verlet.System();
         public float body_compress_amount = 0.0f;
     }
+
     MovementSystem walk = new MovementSystem();
     MovementSystem swing = new MovementSystem();
     MovementSystem jump = new MovementSystem();
+    MovementSystem display = new MovementSystem();
 
     void Start() {
         Verlet.point_prefab_static = point_prefab;
@@ -87,9 +78,8 @@ public class GibbonControl : MonoBehaviour {
         simple_pos[2] = 0f;
 
         // Init hand positions
-        limb_targets = new float3[4];
         for(int i=0; i<4; ++i){
-            limb_targets[i] = simple_pos;
+            display.limb_targets[i] = simple_pos;
             walk.limb_targets[i] = simple_pos;
             swing.limb_targets[i] = simple_pos;
         }
@@ -109,30 +99,30 @@ public class GibbonControl : MonoBehaviour {
         var foot = root.Find("foot");
         
         // Set up bind poses for each bone
-        SetBindPart(bind_parts.head, display_gibbon.transform.Find("DEF-head"));
-        SetBindPart(bind_parts.chest, display_gibbon.transform.Find("DEF-chest"));
-        SetBindPart(bind_parts.belly, display_gibbon.transform.Find("DEF-belly"));
-        SetBindPart(bind_parts.pelvis, display_gibbon.transform.Find("DEF-pelvis"));
-        SetBindPart(bind_parts.arm_top_l, display_gibbon.transform.Find("DEF-upper_arm_L"));
-        SetBindPart(bind_parts.arm_bottom_l, display_gibbon.transform.Find("DEF-forearm_L"));
-        SetBindPart(bind_parts.arm_top_r, display_gibbon.transform.Find("DEF-upper_arm_R"));
-        SetBindPart(bind_parts.arm_bottom_r, display_gibbon.transform.Find("DEF-forearm_R"));
-        SetBindPart(bind_parts.leg_top_l, display_gibbon.transform.Find("DEF-thigh_L"));
-        SetBindPart(bind_parts.leg_bottom_l, display_gibbon.transform.Find("DEF-shin_L"));
-        SetBindPart(bind_parts.leg_top_r, display_gibbon.transform.Find("DEF-thigh_R"));
-        SetBindPart(bind_parts.leg_bottom_r, display_gibbon.transform.Find("DEF-shin_R"));
+        display_body.head.Bind(display_gibbon.transform.Find("DEF-head"));
+        display_body.chest.Bind(display_gibbon.transform.Find("DEF-chest"));
+        display_body.belly.Bind(display_gibbon.transform.Find("DEF-belly"));
+        display_body.pelvis.Bind(display_gibbon.transform.Find("DEF-pelvis"));
+        display_body.arm_top_l.Bind(display_gibbon.transform.Find("DEF-upper_arm_L"));
+        display_body.arm_bottom_l.Bind(display_gibbon.transform.Find("DEF-forearm_L"));
+        display_body.arm_top_r.Bind(display_gibbon.transform.Find("DEF-upper_arm_R"));
+        display_body.arm_bottom_r.Bind(display_gibbon.transform.Find("DEF-forearm_R"));
+        display_body.leg_top_l.Bind(display_gibbon.transform.Find("DEF-thigh_L"));
+        display_body.leg_bottom_l.Bind(display_gibbon.transform.Find("DEF-shin_L"));
+        display_body.leg_top_r.Bind(display_gibbon.transform.Find("DEF-thigh_R"));
+        display_body.leg_bottom_r.Bind(display_gibbon.transform.Find("DEF-shin_R"));
 
         // Adjust elbow to match arm transform
-        elbow.position = bind_parts.arm_bottom_r.transform.position;
+        elbow.position = display_body.arm_bottom_r.transform.position;
 
         // Set up initial IK poses (just used to get bone lengths later)
-        arm_ik.points[0] = shoulder.position;
-        arm_ik.points[1] = elbow.position;
-        arm_ik.points[2] = grip.position;
+        arm_ik[0] = shoulder.position;
+        arm_ik[1] = elbow.position;
+        arm_ik[2] = grip.position;
         
-        leg_ik.points[0] = hip.position;
-        leg_ik.points[1] = bind_parts.leg_bottom_r.transform.position;
-        leg_ik.points[2] = foot.position;
+        leg_ik[0] = hip.position;
+        leg_ik[1] = display_body.leg_bottom_r.transform.position;
+        leg_ik[2] = foot.position;
 
         float measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(elbow.position, grip.position);
             
@@ -140,7 +130,7 @@ public class GibbonControl : MonoBehaviour {
         for(int i=0; i<4; ++i){
             Verlet.System temp;
             switch(i){
-                case 0:  temp = arms; break;
+                case 0:  temp = display.arms; break;
                 case 1:  temp = walk.arms; break;
                 case 2:  temp = jump.arms; break;
                 default:  temp = swing.arms; break;
@@ -228,14 +218,14 @@ public class GibbonControl : MonoBehaviour {
     }
 
     // Solve two bone IK problems
-    static void ApplyTwoBoneIK(int start, int end, float3 forward, TwoBoneIK ik, BindPart top, BindPart bottom, List<Verlet.Point> points, float3 old_axis, float3 axis){
+    static void ApplyTwoBoneIK(int start, int end, float3 forward, float3[] ik, DisplayBone top, DisplayBone bottom, List<Verlet.Point> points, float3 old_axis, float3 axis){
             var shoulder_offset = (points[start].pos - points[start].bind_pos);
             var shoulder_rotation = Quaternion.LookRotation(points[end].pos - points[start].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(points[end].bind_pos - points[start].bind_pos, Vector3.forward));
         
-            float dist_a = math.distance(ik.points[0], ik.points[1]);
-            float dist_b = math.distance(ik.points[1], ik.points[2]);
+            float dist_a = math.distance(ik[0], ik[1]);
+            float dist_b = math.distance(ik[1], ik[2]);
             float dist_c = math.distance(points[start].pos, points[end].pos);
-            float old_dist_c = math.distance(ik.points[0], ik.points[2]);
+            float old_dist_c = math.distance(ik[0], ik[2]);
             var old_elbow_angle = GetAngleGivenSides(dist_a, dist_b, old_dist_c);
             var old_shoulder_angle = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
             var elbow_angle = GetAngleGivenSides(dist_a, dist_b, dist_c);
@@ -258,7 +248,7 @@ public class GibbonControl : MonoBehaviour {
     }
     
     // Calculate transform based on bone points and character "forward" direction
-    void ApplyBound(BindPart part, float3 forward, float3 bind_forward, int start, int end){
+    void ApplyBound(DisplayBone part, float3 forward, float3 bind_forward, int start, int end){
         var up = math.normalize(complete.points[end].pos  - complete.points[start].pos);
         var bind_up = math.normalize(complete.points[end].bind_pos  - complete.points[start].bind_pos);       
         var mid = (complete.points[end].pos + complete.points[start].pos)/2.0f;
@@ -325,31 +315,34 @@ public class GibbonControl : MonoBehaviour {
 
             float total_mass = 0f;
             var com = float3.zero;
-            for(int i=0; i<arms.points.Count; ++i){
-                com += arms.points[i].pos * arms.points[i].mass;
-                total_mass += arms.points[i].mass;
+            for(int i=0; i<display.arms.points.Count; ++i){
+                com += display.arms.points[i].pos * display.arms.points[i].mass;
+                total_mass += display.arms.points[i].mass;
             }
             com /= total_mass;
             jump_com_offset = com-simple_pos;
             jump_time = Time.time;
-            jump_point = (limb_targets[2]+limb_targets[3])*0.5f;
+            jump_point = (display.limb_targets[2]+display.limb_targets[3])*0.5f;
             predicted_land_time = jump_time + 5.0f;
         }
 
         // Use "arms" rig to drive full body IK rig
         const bool map_complete_to_arms = true;
         if(map_complete_to_arms){
-            var bind_mid = (arms.points[0].bind_pos + arms.points[2].bind_pos + arms.points[4].bind_pos)/3.0f;
-            var mid = (arms.points[0].pos + arms.points[2].pos + arms.points[4].pos)/3.0f;
-            var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
-            var bind_forward = math.normalize(math.cross(arms.points[0].bind_pos - arms.points[2].bind_pos, arms.points[0].bind_pos - arms.points[4].bind_pos));
-            var up = math.normalize((arms.points[0].pos + arms.points[2].pos)/2.0f - arms.points[4].pos);
-            var bind_up = math.normalize((arms.points[0].bind_pos + arms.points[2].bind_pos)/2.0f - arms.points[4].bind_pos);
+            var arms = display.arms;
+            var points = arms.points;
+
+            var bind_mid = (points[0].bind_pos + points[2].bind_pos + points[4].bind_pos)/3.0f;
+            var mid = (points[0].pos + points[2].pos + points[4].pos)/3.0f;
+            var forward = math.normalize(math.cross(points[0].pos - points[2].pos, points[0].pos - points[4].pos));
+            var bind_forward = math.normalize(math.cross(points[0].bind_pos - points[2].bind_pos, points[0].bind_pos - points[4].bind_pos));
+            var up = math.normalize((points[0].pos + points[2].pos)/2.0f - points[4].pos);
+            var bind_up = math.normalize((points[0].bind_pos + points[2].bind_pos)/2.0f - points[4].bind_pos);
         
-            complete.points[0].pos = arms.points[0].pos;
-            complete.points[1].pos = arms.points[1].pos;
-            complete.points[2].pos = arms.points[2].pos;
-            complete.points[3].pos = arms.points[3].pos;
+            complete.points[0].pos = points[0].pos;
+            complete.points[1].pos = points[1].pos;
+            complete.points[2].pos = points[2].pos;
+            complete.points[3].pos = points[3].pos;
             complete.points[0].pinned = true;
             complete.points[1].pinned = true;
             complete.points[2].pinned = true;
@@ -378,7 +371,7 @@ public class GibbonControl : MonoBehaviour {
             }
 
             for(int i=0; i<2; ++i){
-                complete.points[11+i*2].pos = limb_targets[2+i];
+                complete.points[11+i*2].pos = display.limb_targets[2+i];
             }
             
             for(int i=0; i<2; ++i){
@@ -399,18 +392,18 @@ public class GibbonControl : MonoBehaviour {
             var bind_up = math.normalize((complete.points[0].bind_pos + complete.points[2].bind_pos)/2.0f - complete.points[9].bind_pos);
         
             // Apply core bones
-            ApplyBound(bind_parts.head, forward, bind_forward, 5, 6);
-            ApplyBound(bind_parts.chest, forward, bind_forward, 6, 7);
-            ApplyBound(bind_parts.belly, forward, bind_forward, 7, 8);
-            ApplyBound(bind_parts.pelvis, forward, bind_forward, 8, 9);
+            ApplyBound(display_body.head, forward, bind_forward, 5, 6);
+            ApplyBound(display_body.chest, forward, bind_forward, 6, 7);
+            ApplyBound(display_body.belly, forward, bind_forward, 7, 8);
+            ApplyBound(display_body.pelvis, forward, bind_forward, 8, 9);
 
             // Arm IK
             for(int i=0; i<2; ++i){
-                var top = bind_parts.arm_top_r;
-                var bottom = bind_parts.arm_bottom_r;
+                var top = display_body.arm_top_r;
+                var bottom = display_body.arm_bottom_r;
                 if(i==1){
-                    top = bind_parts.arm_top_l;
-                    bottom = bind_parts.arm_bottom_l;
+                    top = display_body.arm_top_l;
+                    bottom = display_body.arm_bottom_l;
                 }
 
                 var points = complete.points;
@@ -428,11 +421,11 @@ public class GibbonControl : MonoBehaviour {
 
             // Leg IK
             for(int i=0; i<2; ++i){
-                var top = bind_parts.leg_top_r;
-                var bottom = bind_parts.leg_bottom_r;
+                var top = display_body.leg_top_r;
+                var bottom = display_body.leg_bottom_r;
                 if(i==1){
-                    top = bind_parts.leg_top_l;
-                    bottom = bind_parts.leg_bottom_l;
+                    top = display_body.leg_top_l;
+                    bottom = display_body.leg_bottom_l;
                 }
             
                 var points = complete.points;
@@ -460,15 +453,15 @@ public class GibbonControl : MonoBehaviour {
             
             // head_look_y: 50 = max look down, -70 = max look up
             // head_look_x: -90 to 90
-            var target = math.normalize(bind_parts.head.transform.InverseTransformPoint(look_target));
+            var target = math.normalize(display_body.head.transform.InverseTransformPoint(look_target));
             head_look_y = math.sin(target.x)*Mathf.Rad2Deg;
             var temp = target;
             temp.x = 0.0f;
             temp = math.normalize(temp);
             head_look_x = -math.sin(temp.y)*Mathf.Rad2Deg;
-            bind_parts.head.transform.rotation = bind_parts.head.transform.rotation * Quaternion.Euler(head_look_x, 0f, 0f) * Quaternion.Euler(0f, head_look_y, 0f);
+            display_body.head.transform.rotation = display_body.head.transform.rotation * Quaternion.Euler(head_look_x, 0f, 0f) * Quaternion.Euler(0f, head_look_y, 0f);
             if(head_look_y > 0.0f){
-                bind_parts.head.transform.position = bind_parts.head.transform.position + (Vector3)((bind_parts.head.transform.right) * head_look_y * -0.001f);
+                display_body.head.transform.position = display_body.head.transform.position + (Vector3)((display_body.head.transform.right) * head_look_y * -0.001f);
             }
         }
 
@@ -624,14 +617,14 @@ public class GibbonControl : MonoBehaviour {
                 }
             }
 
-            var test_point = limb_targets[2] + simple_vel * step;
+            var test_point = display.limb_targets[2] + simple_vel * step;
             if(simple_vel[1] <= 0.0f && test_point[1] < BranchesHeight(test_point[0])){
                 in_air = false;
                 skate_amount = 1.0f;
                 wants_to_swing = true;
                 climb_amount = 1.0f;
                 swing_time = 0.0f;
-                for(int i=0; i<arms.points.Count; ++i){
+                for(int i=0; i<display.arms.points.Count; ++i){
                     walk.arms.points[i].pos = jump.arms.points[i].pos;
                 }
             }
@@ -640,9 +633,9 @@ public class GibbonControl : MonoBehaviour {
         if(!in_air){
             simple_pos[1] = BranchesHeight(simple_pos[0]);
             simple_vel[1] = 0.0f;
-            var forward = math.normalize(math.cross(arms.points[0].pos - arms.points[2].pos, arms.points[0].pos - arms.points[4].pos));
+            var forward = math.normalize(math.cross(display.arms.points[0].pos - display.arms.points[2].pos, display.arms.points[0].pos - display.arms.points[4].pos));
             look_target[2] += forward[2];
-            look_target = (float3)bind_parts.head.transform.position + forward * 0.1f;
+            look_target = (float3)display_body.head.transform.position + forward * 0.1f;
             look_target += test_pos - test_pos2;
         }
 
@@ -722,8 +715,8 @@ public class GibbonControl : MonoBehaviour {
             
             if(in_air){
                 swing.arms.StartSim(step);
-                for(int i=0; i<arms.points.Count; ++i){
-                    swing.arms.points[i].pos = arms.points[i].pos;
+                for(int i=0; i<display.arms.points.Count; ++i){
+                    swing.arms.points[i].pos = display.arms.points[i].pos;
                 }
                 swing.arms.EndSim();
             } else {
@@ -782,8 +775,8 @@ public class GibbonControl : MonoBehaviour {
 
             if(!in_air){
                 jump.arms.StartSim(step);
-                for(int i=0; i<arms.points.Count; ++i){
-                    jump.arms.points[i].pos = arms.points[i].pos;
+                for(int i=0; i<display.arms.points.Count; ++i){
+                    jump.arms.points[i].pos = display.arms.points[i].pos;
                 }
                 jump.arms.EndSim();
             } else {
@@ -878,8 +871,8 @@ public class GibbonControl : MonoBehaviour {
 
             if(in_air){
                 walk.arms.StartSim(step);
-                for(int i=0; i<arms.points.Count; ++i){
-                    walk.arms.points[i].pos = arms.points[i].pos;
+                for(int i=0; i<display.arms.points.Count; ++i){
+                    walk.arms.points[i].pos = display.arms.points[i].pos;
                 }
                 walk.arms.EndSim();
             } else {
@@ -952,7 +945,7 @@ public class GibbonControl : MonoBehaviour {
                     if(gallop_amount * quad_amount > 0.0f){
                         for(int i=0; i<2; ++i){
                             walk.limb_targets[i] = arms.points[i*2].pos;
-                            walk.limb_targets[i][1] = BranchesHeight(limb_targets[i][0]);
+                            walk.limb_targets[i][1] = BranchesHeight(display.limb_targets[i][0]);
                             float time_val = walk_time * math.PI * 2.0f;// + math.PI*i*gallop_offset;
                             walk.limb_targets[i][1] += (-math.sin(time_val) + 0.5f)*gallop_arm_stride_height;
                             walk.limb_targets[i] += move_dir * (math.cos(time_val)+0.5f)*gallop_arm_stride * effective_vel[0] / speed_mult;
@@ -986,23 +979,24 @@ public class GibbonControl : MonoBehaviour {
             var old_com = float3.zero;
             {
                 float total_mass = 0.0f;
-                for(int i=0; i<arms.points.Count; ++i){
-                    if(arms.points[i].pinned == false){
-                        old_com += arms.points[i].pos * arms.points[i].mass;
-                        total_mass += arms.points[i].mass;
+                var points = display.arms.points;
+                for(int i=0; i<points.Count; ++i){
+                    if(points[i].pinned == false){
+                        old_com += points[i].pos * points[i].mass;
+                        total_mass += points[i].mass;
                     }
                 }
                 old_com /= total_mass;
             }
 
-            for(int i=0; i<arms.points.Count; ++i){
-                arms.points[i].pos = math.lerp(swing.arms.points[i].pos, walk.arms.points[i].pos, climb_amount);
-                arms.points[i].pos = math.lerp(arms.points[i].pos, jump.arms.points[i].pos, in_air_amount);
+            for(int i=0; i<display.arms.points.Count; ++i){
+                display.arms.points[i].pos = math.lerp(swing.arms.points[i].pos, walk.arms.points[i].pos, climb_amount);
+                display.arms.points[i].pos = math.lerp(display.arms.points[i].pos, jump.arms.points[i].pos, in_air_amount);
             }
-            arms.Constraints();
+            display.arms.Constraints();
             for(int i=0; i<4; ++i){
-                limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], climb_amount);
-                limb_targets[i] = math.lerp(limb_targets[i], jump.limb_targets[i], in_air_amount);
+                display.limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], climb_amount);
+                display.limb_targets[i] = math.lerp(display.limb_targets[i], jump.limb_targets[i], in_air_amount);
             }
             body_compress_amount = math.lerp(swing.body_compress_amount, walk.body_compress_amount, climb_amount);
             body_compress_amount = math.lerp(body_compress_amount, jump.body_compress_amount, in_air_amount);
@@ -1010,10 +1004,11 @@ public class GibbonControl : MonoBehaviour {
             var com = float3.zero;
             {
                 float total_mass = 0.0f;
-                for(int i=0; i<arms.points.Count; ++i){
-                    if(arms.points[i].pinned == false){
-                        com += arms.points[i].pos * arms.points[i].mass;
-                        total_mass += arms.points[i].mass;
+                var points = display.arms.points;
+                for(int i=0; i<points.Count; ++i){
+                    if(points[i].pinned == false){
+                        com += points[i].pos * points[i].mass;
+                        total_mass += points[i].mass;
                     }
                 }
                 com /= total_mass;
@@ -1028,9 +1023,10 @@ public class GibbonControl : MonoBehaviour {
         {
             float total_mass = 0.0f;
             var com = new float3(0.0f, 0.0f, 0.0f);
-            for(int i=0; i<arms.points.Count; ++i){
-                com += arms.points[i].pos * arms.points[i].mass;
-                total_mass += arms.points[i].mass;
+            var points = display.arms.points;
+            for(int i=0; i<points.Count; ++i){
+                com += points[i].pos * points[i].mass;
+                total_mass += points[i].mass;
             }
             com /= total_mass;
             cam_pos[0] = com[0] + simple_vel[0] * 0.1f;
