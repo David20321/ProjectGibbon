@@ -9,7 +9,6 @@ using Unity.Collections;
 namespace Wolfire {
 public class GibbonControl : MonoBehaviour {
     public GameObject display_gibbon; // Character mesh and bone transforms
-    public GameObject point_prefab; // Widget for manipulating point positions
         
     // Skinning data
     class DisplayBone {
@@ -70,8 +69,6 @@ public class GibbonControl : MonoBehaviour {
     MovementSystem display = new MovementSystem();
 
     void Start() {
-        Verlet.point_prefab_static = point_prefab;
-
         // Starting point
         simple_pos = display_gibbon.transform.position;
         simple_pos[1] = 0f;
@@ -126,7 +123,14 @@ public class GibbonControl : MonoBehaviour {
 
         float measured_arm_length = Vector3.Distance(shoulder.position, elbow.position) + Vector3.Distance(elbow.position, grip.position);
             
-        // Set up particles and bones for swinging sim
+        // Point ids
+        const int p_shoulder_r = 0;
+        const int p_hand_r =     1;
+        const int p_shoulder_l = 2;
+        const int p_hand_l =     3;
+        const int p_base =       4;
+
+        // Set up movement system particles and bones
         for(int i=0; i<4; ++i){
             Verlet.System temp;
             switch(i){
@@ -155,7 +159,7 @@ public class GibbonControl : MonoBehaviour {
             temp.AddBone("tri_l", 2, 4);
         }
         
-        // Set up particles and bones for full-body IK
+        // Set up full-body IK particles and bones
         complete.AddPoint(shoulder.position, "shoulder_r");
         complete.AddPoint(grip.position, "hand_r");
         complete.AddPoint((shoulder.position+Vector3.right * (neck.position[0] - shoulder.position[0])*2f), "shoulder_l");
@@ -173,7 +177,7 @@ public class GibbonControl : MonoBehaviour {
         
         complete.AddBone("arm_r", 0, 1);
         complete.bones[complete.bones.Count-1].length[1] = measured_arm_length;
-        complete.bones[complete.bones.Count-1].length[0] *= 0.4f; // Allow arm to flex
+        complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         complete.AddBone("arm_l", 2, 3);
         complete.bones[complete.bones.Count-1].length[1] = measured_arm_length;
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
@@ -186,6 +190,7 @@ public class GibbonControl : MonoBehaviour {
         complete.AddBone("leg_l", 12, 13);
         complete.bones[complete.bones.Count-1].length[0] *= 0.4f;
         
+        // Create random branch 'terrain'
         int num_segments = 40;
         float x = 0;
         float y = 0;
@@ -199,6 +204,7 @@ public class GibbonControl : MonoBehaviour {
             branches.AddBone("branch", i, i+1);
         }
         
+        // Delete visible points so we don't see it when playing game
         Destroy(root.gameObject);
     }
         
@@ -211,40 +217,50 @@ public class GibbonControl : MonoBehaviour {
         // C = acos((c*c - a*a - b*b) / (-2*a*b))
         var top = (c*c - a*a - b*b);
         var divisor = (-2*a*b);
-        if(divisor==0f){
+        if(divisor == 0f){
             return 0f;
         }
         return math.acos(math.clamp(top / divisor, -1f, 1f));
     }
 
     // Solve two bone IK problems
-    static void ApplyTwoBoneIK(int start, int end, float3 forward, float3[] ik, DisplayBone top, DisplayBone bottom, List<Verlet.Point> points, float3 old_axis, float3 axis){
-            var shoulder_offset = (points[start].pos - points[start].bind_pos);
-            var shoulder_rotation = Quaternion.LookRotation(points[end].pos - points[start].pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(points[end].bind_pos - points[start].bind_pos, Vector3.forward));
-        
-            float dist_a = math.distance(ik[0], ik[1]);
-            float dist_b = math.distance(ik[1], ik[2]);
-            float dist_c = math.distance(points[start].pos, points[end].pos);
-            float old_dist_c = math.distance(ik[0], ik[2]);
-            var old_elbow_angle = GetAngleGivenSides(dist_a, dist_b, old_dist_c);
-            var old_shoulder_angle = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
-            var elbow_angle = GetAngleGivenSides(dist_a, dist_b, dist_c);
-            var shoulder_angle = GetAngleGivenSides(dist_c, dist_a, dist_b);
-            DebugText.AddVar("elbow_angle", elbow_angle, 0.5f);
-            DebugText.AddVar("shoulder_angle", shoulder_angle, 0.5f);
-
-            // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
-            shoulder_rotation = Quaternion.AngleAxis(shoulder_angle * Mathf.Rad2Deg, axis) * shoulder_rotation * 
-                                Quaternion.Inverse(Quaternion.AngleAxis(old_shoulder_angle * Mathf.Rad2Deg, old_axis));
+    static void ApplyTwoBoneIK(int start_id, 
+                               int end_id, 
+                               float3 forward, 
+                               float3[] ik, 
+                               DisplayBone top, 
+                               DisplayBone bottom, 
+                               List<Verlet.Point> points, 
+                               float3 old_axis, 
+                               float3 axis)
+    {
+        var start = points[start_id];
+        var end = points[end_id];
             
-            top.transform.position = top.bind_pos + shoulder_offset;
-            top.transform.rotation = shoulder_rotation * top.bind_rot;
+        // Get sides of triangle formed by upper and lower limb
+        float dist_a =     math.distance(ik[0], ik[1]);
+        float dist_b =     math.distance(ik[1], ik[2]);
+        float dist_c =     math.distance(start.pos, end.pos);
+        float old_dist_c = math.distance(ik[0], ik[2]);
+
+        // Get angles of triangle
+        var old_hinge_angle = GetAngleGivenSides(dist_a,     dist_b, old_dist_c);
+        var hinge_angle     = GetAngleGivenSides(dist_a,     dist_b, dist_c);
+        var old_base_angle  = GetAngleGivenSides(old_dist_c, dist_a, dist_b);
+        var base_angle      = GetAngleGivenSides(dist_c,     dist_a, dist_b);
+
+        // Elbow axis is perpendicular to arm direction and vector from middle of arm to base of neck
+        var base_rotation = Quaternion.LookRotation(end.pos - start.pos, forward) * Quaternion.Inverse(Quaternion.LookRotation(end.bind_pos - start.bind_pos, Vector3.forward));
+        base_rotation = Quaternion.AngleAxis(base_angle * Mathf.Rad2Deg, axis) * base_rotation * 
+                            Quaternion.Inverse(Quaternion.AngleAxis(old_base_angle * Mathf.Rad2Deg, old_axis));
+            
+        top.transform.position = top.bind_pos + (start.pos - start.bind_pos);
+        top.transform.rotation = base_rotation * top.bind_rot;
         
-            var elbow = top.transform.position + top.transform.rotation * Quaternion.Inverse(top.bind_rot) * (bottom.bind_pos - top.bind_pos);
-            bottom.transform.position = elbow;
-            bottom.transform.rotation = Quaternion.AngleAxis(elbow_angle * Mathf.Rad2Deg, axis) * shoulder_rotation * 
-                                        Quaternion.Inverse(Quaternion.AngleAxis(old_elbow_angle * Mathf.Rad2Deg, old_axis)) * bottom.bind_rot;
-        
+        var elbow = top.transform.position + top.transform.rotation * Quaternion.Inverse(top.bind_rot) * (bottom.bind_pos - top.bind_pos);
+        bottom.transform.position = elbow;
+        bottom.transform.rotation = Quaternion.AngleAxis(hinge_angle * Mathf.Rad2Deg, axis) * base_rotation * 
+                                    Quaternion.Inverse(Quaternion.AngleAxis(old_hinge_angle * Mathf.Rad2Deg, old_axis)) * bottom.bind_rot;        
     }
     
     // Calculate transform based on bone points and character "forward" direction
