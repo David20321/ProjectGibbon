@@ -7,23 +7,22 @@ using Unity.Mathematics;
 using Unity.Collections;
 
 namespace Wolfire {
+// This is a simple kind of physics engine based on particles and distance constraints:
+// velocity is implied by the delta between the current position and previous position
 public class Verlet {
-    public static GameObject point_prefab_static;
-
     public class Point {
-        public float3 bind_pos;
-        public float3 pos;
-        public float3 old_pos;
-        public float3 temp;
+        public float3 bind_pos; // Initial position, good for skinning
+        public float3 pos; // Current position
+        public float3 old_pos; // Last frame position
+        public float3 temp; // Used as storage during frame update
         public float mass;
-        public bool pinned;
+        public bool pinned; // If pinned, can't move at all
         public string name;
-        public Transform widget;
     }
 
     public class Bone {
         public int2 points;
-        public float2 length;
+        public float2 length; // length[0] is minimum length, length[1] is maximum
         public string name;
         public bool enabled;
     }
@@ -40,7 +39,6 @@ public class Verlet {
             point.pinned = false;
             point.name = name;
             point.mass = 1.0f;
-            //point.widget = GameObject.Instantiate(point_prefab_static, point.pos, Quaternion.identity).transform;
             points.Add(point);
         }
     
@@ -62,6 +60,7 @@ public class Verlet {
             }       
         }
 
+        // Apply gravity and previous velocity, and store position in temp
         public void StartSim(float step){
             float time_sqrd = step * step;
             var acc = new float3(0, Physics.gravity[1], 0);
@@ -74,7 +73,7 @@ public class Verlet {
             }
         }
 
-        public void Constraints() {
+        public void EnforceDistanceConstraints() {
             for(int i=0; i<bones.Count; ++i){
                 if(!bones[i].enabled){
                     continue;
@@ -125,7 +124,7 @@ public class Verlet {
 
         public void Step(float step) {
             StartSim(step);
-            Constraints();
+            EnforceDistanceConstraints();
             EndSim();
         }
     }

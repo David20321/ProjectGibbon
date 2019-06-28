@@ -505,7 +505,7 @@ public class GibbonControl : MonoBehaviour {
             
             // Enforce bone length constraints
             for(int i=0; i<2; ++i){
-                complete.Constraints();
+                complete.EnforceDistanceConstraints();
             }
         }
         
@@ -937,7 +937,7 @@ public class GibbonControl : MonoBehaviour {
                 rig.points[2].pos[2] += step_sqrd * simple_vel[0] * 2.0f;
                 rig.points[4].pos[0] -= simple_vel[0] * step_sqrd * 2f; // Apply backwards force to maintain forwards tilt
                     
-                rig.Constraints();
+                rig.EnforceDistanceConstraints();
             }
             rig.EndSim();
                 
@@ -1005,7 +1005,7 @@ public class GibbonControl : MonoBehaviour {
                 
                 PreventHandsFromCrossingBody(rig);
 
-                rig.Constraints();
+                rig.EnforceDistanceConstraints();
             }
             rig.EndSim();
                 
@@ -1170,7 +1170,7 @@ public class GibbonControl : MonoBehaviour {
                     }
                     
                     for(int i=0; i<2; ++i){
-                        rig.Constraints();
+                        rig.EnforceDistanceConstraints();
                     }
                 }
                 rig.EndSim();
@@ -1212,7 +1212,7 @@ public class GibbonControl : MonoBehaviour {
                 display.simple_rig.points[i].pos = math.lerp(display.simple_rig.points[i].pos, jump.simple_rig.points[i].pos, in_air_amount);
             }
             for(int i=0; i<2; ++i){
-                display.simple_rig.Constraints();
+                display.simple_rig.EnforceDistanceConstraints();
             }
             for(int i=0; i<4; ++i){
                 display.limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], on_branch);
