@@ -86,8 +86,17 @@ public class GibbonControl : MonoBehaviour {
         public bool draw_elbow_ik_target = false;
         public bool draw_com_line = false;
         public bool draw_simple_point = false;
+        int draw_layer = 0;
+        string[] layers = new string[] {
+            "Skinned",
+            "IK",
+            "Rig",
+            "Simple Rig",
+            "Source Rigs",
+            "Particle"
+        };
         int force_gait = 0;
-        string[] items = new string[] {
+        string[] gaits = new string[] {
             "Normal",
             "Skate",
             "Biped Run",
@@ -106,17 +115,22 @@ public class GibbonControl : MonoBehaviour {
 
         public void DrawWindow() {
             if(ImGui.Begin("Debug")){
-                if(ImGui.TreeNode("Draw Rigs")){
-                    ImGui.Checkbox("Display", ref draw_ik_final);
-                    ImGui.Checkbox("Complete", ref draw_display_complete_rig);
-                    ImGui.Checkbox("Combined", ref draw_display_simple_rig);
-                    ImGui.Checkbox("Walk", ref draw_walk_rig);
-                    ImGui.Checkbox("Swing", ref draw_swing_rig);
-                    ImGui.Checkbox("Jump", ref draw_jump_rig);
-                    ImGui.TreePop();
+                if(ImGui.Combo("Draw", ref draw_layer, layers)){
+                    draw_gibbon = (draw_layer==0);
+                    draw_ik_final = (draw_layer==1);
+                    draw_display_complete_rig = (draw_layer==2);
+                    draw_display_simple_rig = (draw_layer==3);
+                    draw_walk_rig = (draw_layer==4);
+                    draw_swing_rig = (draw_layer==4);
+                    draw_jump_rig = (draw_layer==4);
+                    draw_simple_point = (draw_layer==5);
                 }
-                ImGui.Checkbox("Draw gibbon", ref draw_gibbon);
-                ImGui.Checkbox("Draw elbow IK target", ref draw_elbow_ik_target);
+                if(ImGui.Combo("Gait", ref force_gait, gaits)){
+                    force_skate = (force_gait==1);
+                    force_run = (force_gait==2);
+                    force_gallop = (force_gait==3);
+                    force_quad = (force_gait==4);
+                }
                 if(ImGui.Checkbox("Draw COM line", ref draw_com_line)){
                     if(!draw_com_line){
                         foreach(var line in com_lines){
@@ -125,17 +139,11 @@ public class GibbonControl : MonoBehaviour {
                         com_lines.Clear();
                     }
                 }
-                ImGui.Checkbox("Draw simple point", ref draw_simple_point);
-                if(ImGui.Combo("Gait", ref force_gait, items)){
-                    force_skate = (force_gait==1);
-                    force_run = (force_gait==2);
-                    force_gallop = (force_gait==3);
-                    force_quad = (force_gait==4);
-                }
+                ImGui.Checkbox("Draw path smoothing", ref draw_smoothing);
                 ImGui.Checkbox("Draw hand pull", ref draw_hand_pull);
-                ImGui.Checkbox("Draw trajectory", ref draw_trajectory);
+                ImGui.Checkbox("Draw jump trajectory", ref draw_trajectory);
                 ImGui.Checkbox("Draw head look", ref draw_head_look);
-                ImGui.Checkbox("Draw smoothing", ref draw_smoothing);
+                ImGui.Checkbox("Draw elbow IK target", ref draw_elbow_ik_target);
                 
                 bool slow_motion = (Time.timeScale != 1.0f);
                 if(ImGui.Checkbox("Slow motion [tab]", ref slow_motion)) {
@@ -610,10 +618,30 @@ public class GibbonControl : MonoBehaviour {
         }
 
         branches.DrawBones(new Color(0.5f, 0.5f, 0.1f, 1.0f));
-        if(debug_info.draw_walk_rig){ walk.simple_rig.DrawBones(Color.white); }
-        if(debug_info.draw_swing_rig){ swing.simple_rig.DrawBones(Color.white); }
-        if(debug_info.draw_jump_rig){ jump.simple_rig.DrawBones(Color.white); }
-        if(debug_info.draw_display_simple_rig){ display.simple_rig.DrawBones(Color.white); }
+        if(debug_info.draw_walk_rig && in_air_amount < 1.0f && climb_amount > 0.0f){ 
+            walk.simple_rig.DrawBones(Color.red); 
+            for(int i=2; i<4; ++i){
+                DebugDraw.Sphere(walk.limb_targets[i], Color.red, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+            }            
+        }
+        if(debug_info.draw_swing_rig && in_air_amount < 1.0f && climb_amount < 1.0f){ 
+            swing.simple_rig.DrawBones(Color.cyan); 
+            for(int i=2; i<4; ++i){
+                DebugDraw.Sphere(swing.limb_targets[i], Color.cyan, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+            }            
+        }
+        if(debug_info.draw_jump_rig && in_air_amount > 0.0f){ 
+            jump.simple_rig.DrawBones(Color.green); 
+            for(int i=2; i<4; ++i){
+                DebugDraw.Sphere(jump.limb_targets[i], Color.green, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+            }            
+        }
+        if(debug_info.draw_display_simple_rig){ 
+            display.simple_rig.DrawBones(Color.white); 
+            for(int i=2; i<4; ++i){
+                DebugDraw.Sphere(display.limb_targets[i], Color.white, Vector3.one * 0.1f, Quaternion.identity, DebugDraw.Lifetime.OneFrame, DebugDraw.Type.Xray);
+            }            
+        }
         if(debug_info.draw_display_complete_rig){ complete.DrawBones(Color.white); }
         if(debug_info.draw_ik_final){
             for(int i=2; i<complete.bones.Count-2; ++i){
@@ -1028,13 +1056,15 @@ public class GibbonControl : MonoBehaviour {
 
             var target_com = simple_pos;
             target_com[1] = new_pos[1];
-            float crouch_amount = 1.0f-climb_amount;
-            var walk_height = math.lerp(base_walk_height, 0.3f, crouch_amount) + math.sin((walk_time+0.25f) * math.PI * 4.0f) * math.abs(effective_vel[0]) * 0.015f / speed_mult + math.abs(effective_vel[0])*0.01f;
+            var walk_height = base_walk_height + math.sin((walk_time+0.25f) * math.PI * 4.0f) * math.abs(effective_vel[0]) * 0.015f / speed_mult + math.abs(effective_vel[0])*0.01f;
             var gallop_height_ = math.sin((walk_time + gallop_height_offset) * math.PI * 2.0f) * gallop_height * math.abs(effective_vel[0]) + gallop_height_base * (0.5f + math.min(0.5f, math.abs(effective_vel[0])*0.1f));
             target_com[1] += math.lerp(walk_height, gallop_height_, gallop_amount);
             target_com[1] = math.lerp(target_com[1], simple_pos[1] + 0.5f, skate_amount);
             target_com[1] = math.lerp(target_com[1], simple_pos[1], math.abs(lean)*0.15f);
-            
+            if(!wants_to_swing){
+                target_com[1] = math.lerp(target_com[1], new_pos[1], (1.0f-climb_amount)*0.7f);
+            }
+
             var left = simple_pos - new float3(0.1f,0.0f,0.0f);
             var right = simple_pos + new float3(0.1f,0.0f,0.0f);
             left[1] = BranchesHeight(left[0]);
@@ -1163,7 +1193,9 @@ public class GibbonControl : MonoBehaviour {
                 display.simple_rig.points[i].pos = math.lerp(swing.simple_rig.points[i].pos, walk.simple_rig.points[i].pos, climb_amount);
                 display.simple_rig.points[i].pos = math.lerp(display.simple_rig.points[i].pos, jump.simple_rig.points[i].pos, in_air_amount);
             }
-            display.simple_rig.Constraints();
+            for(int i=0; i<2; ++i){
+                display.simple_rig.Constraints();
+            }
             for(int i=0; i<4; ++i){
                 display.limb_targets[i] = math.lerp(swing.limb_targets[i], walk.limb_targets[i], climb_amount);
                 display.limb_targets[i] = math.lerp(display.limb_targets[i], jump.limb_targets[i], in_air_amount);
